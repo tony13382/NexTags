@@ -1,0 +1,49 @@
+# 忽略所有音樂資料夾
+Music/
+
+# 忽略工具相關資料夾
+.claude/
+
+# 忽略前端相關資料夾
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# 忽略 Python 相關文件
+__pycache__/
+*.py[oc]
+*.egg-info
+.venv/
+.env
+*.log
+
+# 忽略系統文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 忽略 IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 忽略臨時文件
+*.tmp
+*.temp
+*.cache
+
+# 忽略日誌文件
+logs/
+backend/logs/
+*.log
+
+# 忽略依賴和建置文件
+node_modules/
+dist/
+build/
+wheels/
