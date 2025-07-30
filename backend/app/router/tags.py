@@ -24,13 +24,13 @@ async def get_supported_tags() -> List[str]:
         raise HTTPException(status_code=500, detail=f"讀取標籤清單時發生錯誤: {str(e)}")
 
 @router.get("/languages")
-async def get_supported_languages() -> List[str]:
+async def get_supported_languages() -> dict:
     """獲取支援的語言清單"""
     try:
         config = load_config()
         supported_languages = config.get('supported_languages', {})
-        # 回傳語言代碼清單 (key)
-        return list(supported_languages.keys())
+        # 回傳完整的語言對應表
+        return supported_languages
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="config.yaml 檔案不存在")
     except Exception as e:

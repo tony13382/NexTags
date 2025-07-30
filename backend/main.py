@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.router.audio import router as audios_router
 from app.router.tools import router as tools_router
 from app.router.tags import router as tags_router
+from app.router.images import router as images_router
 from app.dependencies.logger import logger
 
 app = FastAPI(
@@ -22,6 +23,7 @@ app.add_middleware(
 app.include_router(audios_router)
 app.include_router(tools_router)
 app.include_router(tags_router)
+app.include_router(images_router)
 
 @app.on_event("startup")
 async def startup_event():

@@ -3,7 +3,7 @@ from mutagen.mp4 import MP4
 from mutagen.flac import FLAC
 from mutagen.mp3 import MP3
 from mutagen.oggvorbis import OggVorbis
-from mutagen.id3 import TIT2, TPE1, TALB, TPE2, TDRC, TRCK, TPOS, TSOT, TSOP, TSOA
+from mutagen.id3 import TIT2, TPE1, TALB, TPE2, TDRC, TRCK, TPOS, TSOT, TSOP, TSOA, COMM, USLT
 
 from app.dependencies.logger import logger
 
@@ -12,7 +12,7 @@ def write_mp4_tags(audio, tags_dict):
     """寫入 MP4 格式的標籤"""
     tag_mapping = {
         'title': '\xa9nam',
-        'artist': '\xa9ART', 
+        'artist': '\xa9ART',
         'album': '\xa9alb',
         'albumartist': 'aART',
         'date': '\xa9day',
@@ -21,9 +21,11 @@ def write_mp4_tags(audio, tags_dict):
         'disc': 'disk',
         'genre': '\xa9gen',
         'comment': '\xa9cmt',
+        'lyrics': '\xa9lyr',
         'titlesort': 'sonm',
         'artistsort': 'soar',
-        'albumsort': 'soal'
+        'albumsort': 'soal',
+        'jfid': 'JFID'
     }
     
     for key, value in tags_dict.items():
@@ -35,6 +37,12 @@ def write_mp4_tags(audio, tags_dict):
                     audio[mp4_key] = [(int(current), int(total))]
                 else:
                     audio[mp4_key] = [(int(value), 0)]
+            elif key == 'genre':
+                # 處理流派列表格式
+                if isinstance(value, list):
+                    audio[mp4_key] = [str(v) for v in value if v]
+                else:
+                    audio[mp4_key] = [str(value)]
             else:
                 audio[mp4_key] = [str(value)]
 
@@ -42,17 +50,33 @@ def write_mp4_tags(audio, tags_dict):
 def write_flac_tags(audio, tags_dict):
     """寫入 FLAC 格式的標籤"""
     for key, value in tags_dict.items():
-        audio[key.upper()] = [str(value)]
+        if key == 'genre' and isinstance(value, list):
+            # 處理流派列表格式
+            audio[key.upper()] = [str(v) for v in value if v]
+        elif key == 'jfid':
+            # 處理 jfid 標籤
+            audio['JFID'] = [str(value)]
+        else:
+            audio[key.upper()] = [str(value)]
 
 
 def write_ogg_tags(audio, tags_dict):
     """寫入 OGG 格式的標籤"""
     for key, value in tags_dict.items():
-        audio[key.upper()] = [str(value)]
+        if key == 'genre' and isinstance(value, list):
+            # 處理流派列表格式
+            audio[key.upper()] = [str(v) for v in value if v]
+        elif key == 'jfid':
+            # 處理 jfid 標籤
+            audio['JFID'] = [str(value)]
+        else:
+            audio[key.upper()] = [str(value)]
 
 
 def write_mp3_tags(audio, tags_dict):
     """寫入 MP3 格式的標籤"""
+    from mutagen.id3 import TCON
+    
     tag_mapping = {
         'title': TIT2,
         'artist': TPE1,
@@ -64,11 +88,29 @@ def write_mp3_tags(audio, tags_dict):
         'disc': TPOS,
         'titlesort': TSOT,
         'artistsort': TSOP,
-        'albumsort': TSOA
+        'albumsort': TSOA,
+        'genre': TCON,
+        'jfid': None  # 自定義處理
     }
     
     for key, value in tags_dict.items():
-        if key in tag_mapping:
+        if key == 'comment':
+            # 對於評論，使用 COMM 框架
+            audio.tags['COMM::eng'] = COMM(encoding=3, lang='eng', desc='', text=str(value))
+        elif key == 'lyrics':
+            # 對於歌詞，使用 USLT 框架
+            audio.tags['USLT::eng'] = USLT(encoding=3, lang='eng', desc='', text=str(value))
+        elif key == 'genre':
+            # 處理流派列表格式
+            if isinstance(value, list):
+                audio.tags['TCON'] = TCON(encoding=3, text=[str(v) for v in value if v])
+            else:
+                audio.tags['TCON'] = TCON(encoding=3, text=[str(value)])
+        elif key == 'jfid':
+            # 對於 jfid，使用自定義 TXXX 框架
+            from mutagen.id3 import TXXX
+            audio.tags['TXXX:JFID'] = TXXX(encoding=3, desc='JFID', text=str(value))
+        elif key in tag_mapping and tag_mapping[key] is not None:
             tag_class = tag_mapping[key]
             audio.tags[tag_class.__name__] = tag_class(encoding=3, text=str(value))
 

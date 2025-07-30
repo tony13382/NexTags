@@ -71,6 +71,9 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
         # 讀取標籤
         tags = read_audio_tags(file_path)
         
+        # 取得檔案修改時間
+        modification_time = os.path.getmtime(file_path) if os.path.exists(file_path) else 0
+        
         # 判斷主資料夾
         main_folder = "unknown"
         music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
@@ -80,12 +83,13 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
                 main_folder = folder_name
                 break
         
-        # 處理流派（可能是字串或清單）
-        genre = tags.get('genre', '')
-        if isinstance(genre, str):
-            genre_list = [genre] if genre else ['']
-        elif isinstance(genre, list):
+        # 處理流派（現在統一為 List[str] 格式）
+        genre = tags.get('genre', [])
+        if isinstance(genre, list):
             genre_list = genre if genre else ['']
+        elif isinstance(genre, str):
+            # 備用處理，以防萬一還是收到字符串格式
+            genre_list = [genre] if genre else ['']
         else:
             genre_list = ['']
         
@@ -138,10 +142,15 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
             "Genre": genre_list,
             "Language": tag_to_string(tags.get('language', '')),
             "Favorite": get_favorite_status(),
-            "Cover": cover_path
+            "Cover": cover_path,
+            "Lyrics": tag_to_string(tags.get('lyrics', '')),
+            "Comment": tag_to_string(tags.get('comment', '')),
+            "JfId": tag_to_string(tags.get('jfid', '')),
+            "ModificationTime": modification_time
         }
     except Exception:
         # 如果讀取失敗，回傳基本資訊
+        modification_time = os.path.getmtime(file_path) if os.path.exists(file_path) else 0
         return {
             "Title": "",
             "SortTitle": "",
@@ -154,7 +163,11 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
             "Genre": [""],
             "Language": "",
             "Favorite": "False",
-            "Cover": ""
+            "Cover": "",
+            "Lyrics": "",
+            "Comment": "",
+            "JfId": "",
+            "ModificationTime": modification_time
         }
 
 async def get_audio_details_concurrent(file_paths: List[str], allow_folders: List[str]) -> List[dict]:
@@ -198,6 +211,13 @@ def apply_filters(audio_details: List[dict], filter_title: Optional[str], filter
     
     return filtered_results
 
+def _get_file_modification_time(file_path: str) -> float:
+    """獲取檔案修改時間"""
+    try:
+        return os.path.getmtime(file_path) if os.path.exists(file_path) else 0
+    except Exception:
+        return 0
+
 @router.get("/")
 async def get_audios(
     p: Optional[int] = Query(1, ge=1, description="頁數，從1開始"),
@@ -236,6 +256,9 @@ async def get_audios(
             else:
                 filtered_info = all_detailed_info
             
+            # 按修改時間排序（最新的在前）
+            filtered_info.sort(key=lambda x: x.get('ModificationTime', 0), reverse=True)
+            
             # 分頁參數（基於過濾後的結果）
             page_size = 100
             total_count = len(filtered_info)
@@ -254,6 +277,9 @@ async def get_audios(
             
         else:
             # 簡單模式（無過濾，無詳細資訊）
+            # 按修改時間排序（最新的在前）
+            all_audio_files.sort(key=lambda x: _get_file_modification_time(x), reverse=True)
+            
             page_size = 100
             total_count = len(all_audio_files)
             total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
