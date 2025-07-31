@@ -109,8 +109,8 @@ def find_audio_files(base_folder: str) -> List[str]:
             files = glob.glob(pattern, recursive=True)
             audio_files.extend(files)
         
-        # 去重並排序
-        audio_files = list(set(audio_files))
+        # 去重並按檔案路徑排序，確保每次執行順序一致
+        audio_files = sorted(list(set(audio_files)))
         logger.info(f"在資料夾 {full_path} 中找到 {len(audio_files)} 個音訊檔案")
         
     except Exception as e:

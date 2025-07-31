@@ -322,11 +322,11 @@ class JellyfinPlaylistsClient:
             return False
         
         # 批次處理以避免 URL 過長（HTTP 414 錯誤）
-        batch_size = 50  # 每批最多50首歌曲
+        batch_size = 30  # 減少批次大小以確保順序穩定性
         total_batches = (len(song_ids) + batch_size - 1) // batch_size
         successful_batches = 0
         
-        logger.info(f"將 {len(song_ids)} 首歌曲分成 {total_batches} 批次處理")
+        logger.info(f"將 {len(song_ids)} 首歌曲分成 {total_batches} 批次處理（每批 {batch_size} 首）")
         
         for batch_num in range(total_batches):
             start_idx = batch_num * batch_size
@@ -335,6 +335,7 @@ class JellyfinPlaylistsClient:
             
             logger.info(f"處理第 {batch_num + 1}/{total_batches} 批次，包含 {len(batch_song_ids)} 首歌曲")
             logger.info(f"第 {batch_num + 1} 批次歌曲 ID 順序: {','.join(batch_song_ids[:3])}...")
+            logger.info(f"第 {batch_num + 1} 批次位置範圍: {start_idx+1}-{end_idx}")
             
             params = {
                 "userId": user_id,
@@ -346,6 +347,11 @@ class JellyfinPlaylistsClient:
             if result:
                 successful_batches += 1
                 logger.info(f"第 {batch_num + 1} 批次添加成功")
+                
+                # 在批次間加入小延遲以確保順序穩定（除了最後一批）
+                if batch_num < total_batches - 1:
+                    await asyncio.sleep(0.1)
+                    logger.info(f"批次間延遲完成，準備處理下一批")
             else:
                 logger.error(f"第 {batch_num + 1} 批次添加失敗")
                 # 繼續處理下一批次，不立即返回 False
