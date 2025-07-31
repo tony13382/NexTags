@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Plus, ListMusic, RefreshCcw, Edit } from 'lucide-react';
+import { Plus, ListMusic, RefreshCcw, Edit, Trash2 } from 'lucide-react';
 import PlaylistEditDialog from '@/components/PlaylistEditDialog';
 
 interface SmartPlaylist {
@@ -35,6 +35,9 @@ export default function PlaylistsPage() {
   const [syncingIndex, setSyncingIndex] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
+  const [deletingPlaylist, setDeletingPlaylist] = useState<SmartPlaylist | null>(null);
 
   useEffect(() => {
     fetchPlaylists();
@@ -169,6 +172,55 @@ export default function PlaylistsPage() {
     }
   };
 
+  const handleDeletePlaylist = (playlist: SmartPlaylist, index: number) => {
+    setDeletingPlaylist(playlist);
+    setDeletingIndex(index);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeletePlaylist = async () => {
+    if (deletingIndex === null) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccessMessage(null);
+
+      const response = await fetch(`/api/playlists/${deletingIndex}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // 重新載入播放清單
+        await fetchPlaylists();
+        setDeleteConfirmOpen(false);
+        setDeletingPlaylist(null);
+        setDeletingIndex(null);
+        setSuccessMessage(data.message || '成功刪除播放清單');
+        // 清除成功訊息 after 3 seconds
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        setError(data.message || '刪除播放清單失敗');
+      }
+    } catch (err) {
+      setError('網路錯誤，請稍後再試');
+      console.error('Error deleting playlist:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelDeletePlaylist = () => {
+    setDeleteConfirmOpen(false);
+    setDeletingPlaylist(null);
+    setDeletingIndex(null);
+  };
+
   if (loading) {
     return (
       <div className="mx-auto px-8 py-4">
@@ -268,9 +320,9 @@ export default function PlaylistsPage() {
                       <td className="px-4 py-3 text-gray-900 font-medium max-w-[240px] min-w-[100px]">
                         {playlist.name}
                       </td>
-                      <td className="px-4 py-3 text-gray-900 max-w-[200px] min-w-[100px]">
+                      <td className="space-x-2 space-y-2 px-4 py-3 text-gray-900 max-w-[200px] min-w-[120px]">
                         {playlist.filter_tags_display.length > 0 ? (
-                          <span className="space-x-1 gap-2">
+                          <span className="space-x-2 space-y-2">
                             {playlist.filter_tags_display.map((tag, tagIndex) => (
                               <span
                                 key={tagIndex}
@@ -297,17 +349,17 @@ export default function PlaylistsPage() {
                           {playlist.filter_favorites_display}
                         </span>
                       </td>
-                      <td className="px-4 py-3 space-x-2 max-w-[200px] min-w-[100px] text-center">
+                      <td className="px-4 py-3 max-w-[280px] min-w-[100px] text-center">
                         <Link
                           href={`/playlist/${index}`}
-                          className="inline-flex items-center p-3 text-xs bg-gray-100 text-gray-800 rounded hover:bg-gray-300"
+                          className="m-2 inline-flex items-center p-3 text-xs bg-gray-100 text-gray-800 rounded hover:bg-gray-300"
                           title="查看播放清單"
                         >
                           <ListMusic className="w-6 h-6" />
                         </Link>
                         <button
                           onClick={() => handleEditPlaylist(playlist, index)}
-                          className="inline-flex items-center p-3 text-xs bg-gray-100 text-gray-800 rounded hover:bg-gray-300"
+                          className="m-2 inline-flex items-center p-3 text-xs bg-gray-100 text-gray-800 rounded hover:bg-gray-300"
                           title="編輯播放清單"
                         >
                           <Edit className="w-6 h-6" />
@@ -315,13 +367,20 @@ export default function PlaylistsPage() {
                         <button
                           onClick={() => handleSyncToJellyfin(index, playlist)}
                           disabled={syncingIndex === index}
-                          className={`inline-flex items-center p-3 text-xs rounded ${syncingIndex === index
+                          className={`m-2 inline-flex items-center p-3 text-xs rounded ${syncingIndex === index
                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                             : 'bg-gray-100 text-gray-800 hover:bg-gray-300'
                             }`}
                           title={playlist.jellyfin_playlist_id ? "同步到 Jellyfin" : "需要設定 Jellyfin Playlist ID"}
                         >
                           <RefreshCcw className={`w-6 h-6 ${syncingIndex === index ? 'animate-spin' : ''}`} />
+                        </button>
+                        <button
+                          onClick={() => handleDeletePlaylist(playlist, index)}
+                          className="m-2 inline-flex items-center p-3 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200"
+                          title="刪除播放清單"
+                        >
+                          <Trash2 className="w-6 h-6" />
                         </button>
                       </td>
                     </tr>
@@ -345,6 +404,40 @@ export default function PlaylistsPage() {
         onSave={handleSavePlaylist}
         isCreate={isCreating}
       />
+
+      {/* 刪除確認對話框 */}
+      {deleteConfirmOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              確認刪除播放清單
+            </h3>
+            <p className="text-gray-600 mb-6">
+              您確定要刪除播放清單「{deletingPlaylist?.name}」嗎？
+              <br />
+              <span className="text-red-600 font-medium">此操作無法復原。</span>
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={cancelDeletePlaylist}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDeletePlaylist}
+                disabled={loading}
+                className={`px-4 py-2 text-white rounded ${loading
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-red-600 hover:bg-red-700'
+                  }`}
+              >
+                {loading ? '刪除中...' : '確認刪除'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

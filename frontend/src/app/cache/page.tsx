@@ -90,16 +90,20 @@ export default function CachePage() {
 
             {statistics && (
                 <div className="space-y-8">
+                    <hr />
                     {/* 實際檔案數據 */}
                     <div>
                         <h2 className="text-xl font-semibold mb-4">實際檔案數據</h2>
-                        <div className="bg-white border rounded-lg p-6">
-                            <div className="grid grid-cols-3 gap-8">
+                        <div>
+                            <div className="grid grid-cols-4 gap-8">
                                 {statistics.folders.map((folder) => (
-                                    <div key={folder} className="text-center">
+                                    <div key={folder} className="bg-white border rounded-lg p-6 text-left">
                                         <div className="text-gray-600 mb-2">{folder}</div>
-                                        <div className="text-3xl font-bold text-gray-900">
-                                            {statistics.actual_files.by_folder[folder] || 0}
+                                        <div className="flex items-end text-3xl font-bold text-gray-900">
+                                            <span className="flex-1">
+                                                {statistics.actual_files.by_folder[folder] || 0}
+                                            </span>
+                                            <span className="text-base">首</span>
                                         </div>
                                     </div>
                                 ))}
@@ -107,16 +111,21 @@ export default function CachePage() {
                         </div>
                     </div>
 
+                    <hr />
+
                     {/* 快取數據 */}
                     <div>
                         <h2 className="text-xl font-semibold mb-4">快取數據</h2>
-                        <div className="bg-white border rounded-lg p-6">
-                            <div className="grid grid-cols-3 gap-8">
+                        <div>
+                            <div className="grid grid-cols-4 gap-8">
                                 {statistics.folders.map((folder) => (
-                                    <div key={folder} className="text-center">
+                                    <div key={folder} className="bg-white border rounded-lg p-6 text-left">
                                         <div className="text-gray-600 mb-2">{folder}</div>
-                                        <div className="text-3xl font-bold text-gray-900">
-                                            {statistics.cached_files.by_folder[folder] || 0}
+                                        <div className="flex items-end text-3xl font-bold text-gray-900">
+                                            <span className="flex-1">
+                                                {statistics.cached_files.by_folder[folder] || 0}
+                                            </span>
+                                            <span className="text-base">首</span>
                                         </div>
                                     </div>
                                 ))}
