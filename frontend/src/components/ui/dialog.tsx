@@ -26,7 +26,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
     )
 }
 
-interface DialogContentProps extends React.ComponentProps<"div"> { }
+type DialogContentProps = React.ComponentProps<"div">
 
 export function DialogContent({ className, children, ...props }: DialogContentProps) {
     return (
@@ -42,7 +42,7 @@ export function DialogContent({ className, children, ...props }: DialogContentPr
     )
 }
 
-interface DialogHeaderProps extends React.ComponentProps<"div"> { }
+type DialogHeaderProps = React.ComponentProps<"div">
 
 export function DialogHeader({ className, children, ...props }: DialogHeaderProps) {
     return (
@@ -55,7 +55,7 @@ export function DialogHeader({ className, children, ...props }: DialogHeaderProp
     )
 }
 
-interface DialogTitleProps extends React.ComponentProps<"h2"> { }
+type DialogTitleProps = React.ComponentProps<"h2">
 
 export function DialogTitle({ className, children, ...props }: DialogTitleProps) {
     return (
@@ -83,7 +83,7 @@ export function DialogClose({ onClose }: DialogCloseProps) {
     )
 }
 
-interface DialogFooterProps extends React.ComponentProps<"div"> { }
+type DialogFooterProps = React.ComponentProps<"div">
 
 export function DialogFooter({ className, children, ...props }: DialogFooterProps) {
     return (

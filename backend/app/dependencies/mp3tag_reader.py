@@ -28,6 +28,7 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
         'albumsort': ['albumsort', 'TSOA', 'soal', 'ALBUMSORT'],
         'genre': ['genre', 'TCON', '\xa9gen', 'GENRE'],
         'language': ['language', 'TLAN', 'LANGUAGE'],
+        'favorite': ['favorite', 'FAVORITE', 'Favorite', 'TXXX:FAVORITE', 'TXXX:Favorite'],
         'jfid': ['jfid', 'JFID', 'JellyfinID', 'JELLYFIN_ID', 'jellyfin_id', 'TXXX:JFID']
     }
     

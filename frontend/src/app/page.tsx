@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Music, Heart, Folder, Edit } from 'lucide-react';
+import { Search, Music, Heart, Edit } from 'lucide-react';
 import TagEditor from '@/components/TagEditor';
 
 interface Song {
@@ -83,7 +83,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchSongs();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = () => {
     fetchSongs(1);

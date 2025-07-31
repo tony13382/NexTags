@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, ListMusic, RefreshCcw, Edit } from 'lucide-react';
 import PlaylistEditDialog from '@/components/PlaylistEditDialog';
 
@@ -35,6 +34,7 @@ export default function PlaylistsPage() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [syncingIndex, setSyncingIndex] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     fetchPlaylists();
@@ -43,7 +43,7 @@ export default function PlaylistsPage() {
   const fetchPlaylists = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/playlists');
+      const response = await fetch('/api/playlists/');
       const data: PlaylistsResponse = await response.json();
 
       if (data.success) {
@@ -65,34 +65,73 @@ export default function PlaylistsPage() {
     setEditDialogOpen(true);
   };
 
-  const handleSavePlaylist = async (index: number, updatedPlaylist: Partial<SmartPlaylist>) => {
+  const handleSavePlaylist = async (index: number | null, updatedPlaylist: Partial<SmartPlaylist>) => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/playlists/${index}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedPlaylist),
-      });
 
-      const data = await response.json();
+      if (index === null) {
+        // 新增播放清單
+        const response = await fetch('/api/playlists/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatedPlaylist),
+        });
 
-      if (data.success) {
-        // 重新載入播放清單
-        await fetchPlaylists();
-        setEditDialogOpen(false);
-        setEditingPlaylist(null);
-        setEditingIndex(null);
+        const data = await response.json();
+
+        if (data.success) {
+          // 重新載入播放清單
+          await fetchPlaylists();
+          setEditDialogOpen(false);
+          setEditingPlaylist(null);
+          setEditingIndex(null);
+          setIsCreating(false);
+          setSuccessMessage(data.message || '成功建立播放清單');
+          // 清除成功訊息 after 3 seconds
+          setTimeout(() => setSuccessMessage(null), 3000);
+        } else {
+          setError(data.message || '建立播放清單失敗');
+        }
       } else {
-        setError(data.message || '更新播放清單失敗');
+        // 更新播放清單
+        const response = await fetch(`/api/playlists/${index}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatedPlaylist),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // 重新載入播放清單
+          await fetchPlaylists();
+          setEditDialogOpen(false);
+          setEditingPlaylist(null);
+          setEditingIndex(null);
+          setSuccessMessage(data.message || '成功更新播放清單');
+          // 清除成功訊息 after 3 seconds
+          setTimeout(() => setSuccessMessage(null), 3000);
+        } else {
+          setError(data.message || '更新播放清單失敗');
+        }
       }
     } catch (err) {
       setError('網路錯誤，請稍後再試');
-      console.error('Error updating playlist:', err);
+      console.error('Error saving playlist:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAddPlaylist = () => {
+    setEditingPlaylist(null);
+    setEditingIndex(null);
+    setIsCreating(true);
+    setEditDialogOpen(true);
   };
 
   const handleSyncToJellyfin = async (index: number, playlist: SmartPlaylist) => {
@@ -160,7 +199,7 @@ export default function PlaylistsPage() {
       <div className="flex justify-between items-center mt-4 mb-6">
         <h1 className="text-2xl font-bold text-gray-900">播放清單管理</h1>
         <Button
-          onClick={() => {/* TODO: 實現新增播放清單功能 */ }}
+          onClick={handleAddPlaylist}
           className="bg-gray-600 hover:bg-gray-700 text-white"
         >
           <Plus className="w-4 h-4" />
@@ -304,6 +343,7 @@ export default function PlaylistsPage() {
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         onSave={handleSavePlaylist}
+        isCreate={isCreating}
       />
     </div>
   );

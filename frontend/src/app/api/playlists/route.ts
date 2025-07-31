@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://backend:8000';
 
@@ -24,6 +24,37 @@ export async function GET() {
             {
                 success: false,
                 message: '獲取播放清單失敗',
+                error: error instanceof Error ? error.message : String(error)
+            },
+            { status: 500 }
+        );
+    }
+}
+
+export async function POST(request: Request) {
+    try {
+        const body = await request.json();
+
+        const response = await fetch(`${BACKEND_URL}/playlists/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return NextResponse.json(data);
+    } catch (error) {
+        console.error('Error creating playlist:', error);
+        return NextResponse.json(
+            {
+                success: false,
+                message: '建立播放清單失敗',
                 error: error instanceof Error ? error.message : String(error)
             },
             { status: 500 }

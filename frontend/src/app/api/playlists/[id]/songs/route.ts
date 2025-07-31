@@ -4,10 +4,10 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://backend:8000';
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const playlistIndex = params.id;
+        const { id: playlistIndex } = await params;
 
         const response = await fetch(`${BACKEND_URL}/playlists/${playlistIndex}/songs`, {
             method: 'GET',

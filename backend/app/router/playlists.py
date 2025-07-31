@@ -145,8 +145,18 @@ def filter_songs_by_playlist(playlist: Dict[str, Any], audio_files: List[str]) -
                 if not has_required_tag:
                     continue
             
-            # 檢查我的最愛過濾條件 (這裡需要根據實際需求實現)
-            # 暫時跳過 filter_favorites 的實現，因為需要了解如何判斷「我的最愛」
+            # 檢查我的最愛過濾條件
+            if playlist.get('filter_favorites') is not None:
+                file_favorite = tags.get('favorite', '').strip().lower()
+                # 將標籤值轉換為布林值，null 或空值視為 False
+                is_favorite = file_favorite in ['true', '1', 'yes']
+                
+                # 如果播放清單要求只包含我的最愛，但歌曲不是我的最愛，則跳過
+                if playlist['filter_favorites'] and not is_favorite:
+                    continue
+                # 如果播放清單要求排除我的最愛，但歌曲是我的最愛，則跳過
+                elif not playlist['filter_favorites'] and is_favorite:
+                    continue
             
             filtered_songs.append(file_path)
             
@@ -194,8 +204,8 @@ def get_tags_display_names(tags: List[str], config: Dict[str, Any]) -> List[str]
 def get_favorites_display_name(favorites: Optional[bool]) -> str:
     """獲取我的最愛過濾條件的顯示名稱"""
     if favorites is None:
-        return "不設定"
-    return "已設定" if favorites else "不設定"
+        return "不篩選"
+    return "只包含我的最愛" if favorites else "排除我的最愛"
 
 def enrich_playlist_data(playlist_data: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     """豐富播放清單資料，加入顯示名稱"""

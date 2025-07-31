@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter } from '@/components/ui/dialog';
-import { Save, X } from 'lucide-react';
+import { Save } from 'lucide-react';
 
 interface SmartPlaylist {
     name: string;
@@ -23,7 +23,8 @@ interface PlaylistEditDialogProps {
     playlistIndex: number | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSave: (index: number, updatedPlaylist: Partial<SmartPlaylist>) => void;
+    onSave: (index: number | null, updatedPlaylist: Partial<SmartPlaylist>) => void;
+    isCreate?: boolean;
 }
 
 export default function PlaylistEditDialog({
@@ -31,7 +32,8 @@ export default function PlaylistEditDialog({
     playlistIndex,
     open,
     onOpenChange,
-    onSave
+    onSave,
+    isCreate = false
 }: PlaylistEditDialogProps) {
     const [editedPlaylist, setEditedPlaylist] = useState<Partial<SmartPlaylist>>({});
     const [loading, setLoading] = useState(false);
@@ -40,17 +42,30 @@ export default function PlaylistEditDialog({
     const [baseFolders, setBaseFolders] = useState<string[]>([]);
 
     useEffect(() => {
-        if (playlist && open) {
-            setEditedPlaylist({
-                name: playlist.name,
-                base_folder: playlist.base_folder,
-                filter_tags: [...(playlist.filter_tags || [])],
-                filter_language: playlist.filter_language,
-                filter_favorites: playlist.filter_favorites,
-                jellyfin_playlist_id: playlist.jellyfin_playlist_id || ''
-            });
+        if (open) {
+            if (playlist) {
+                // 編輯模式
+                setEditedPlaylist({
+                    name: playlist.name,
+                    base_folder: playlist.base_folder,
+                    filter_tags: [...(playlist.filter_tags || [])],
+                    filter_language: playlist.filter_language,
+                    filter_favorites: playlist.filter_favorites,
+                    jellyfin_playlist_id: playlist.jellyfin_playlist_id || ''
+                });
+            } else {
+                // 新增模式
+                setEditedPlaylist({
+                    name: '',
+                    base_folder: '',
+                    filter_tags: [],
+                    filter_language: null,
+                    filter_favorites: null,
+                    jellyfin_playlist_id: ''
+                });
+            }
         }
-    }, [playlist, open]);
+    }, [playlist, open, isCreate]);
 
     useEffect(() => {
         if (open) {
@@ -106,7 +121,10 @@ export default function PlaylistEditDialog({
     };
 
     const handleSave = async () => {
-        if (!playlist || playlistIndex === null) return;
+        // 驗證必填欄位
+        if (!editedPlaylist.name || !editedPlaylist.base_folder) {
+            return;
+        }
 
         setLoading(true);
         try {
@@ -124,13 +142,13 @@ export default function PlaylistEditDialog({
         setEditedPlaylist({});
     };
 
-    if (!playlist) return null;
+    // 移除這個限制，因為新增模式時 playlist 是 null
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>播放清單編輯</DialogTitle>
+                    <DialogTitle>{isCreate ? '新增播放清單' : '播放清單編輯'}</DialogTitle>
                     <DialogClose onClose={handleClose} />
                 </DialogHeader>
 
