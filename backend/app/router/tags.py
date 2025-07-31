@@ -35,3 +35,15 @@ async def get_supported_languages() -> dict:
         raise HTTPException(status_code=404, detail="config.yaml 檔案不存在")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"讀取語言清單時發生錯誤: {str(e)}")
+
+@router.get("/baseFolders")
+async def get_base_folders() -> List[str]:
+    """獲取允許的基礎資料夾清單"""
+    try:
+        config = load_config()
+        allow_folders = config.get('allow_folders', [])
+        return allow_folders
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="config.yaml 檔案不存在")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"讀取資料夾清單時發生錯誤: {str(e)}")

@@ -47,3 +47,4 @@ node_modules/
 dist/
 build/
 wheels/
+/backend/app/data/smart_playlist.json

@@ -4,6 +4,8 @@ from app.router.audio import router as audios_router
 from app.router.tools import router as tools_router
 from app.router.tags import router as tags_router
 from app.router.images import router as images_router
+from app.router.jellyfin import router as jellyfin_router
+from app.router.playlists import router as playlists_router
 from app.dependencies.logger import logger
 
 app = FastAPI(
@@ -24,6 +26,8 @@ app.include_router(audios_router)
 app.include_router(tools_router)
 app.include_router(tags_router)
 app.include_router(images_router)
+app.include_router(jellyfin_router)
+app.include_router(playlists_router)
 
 @app.on_event("startup")
 async def startup_event():

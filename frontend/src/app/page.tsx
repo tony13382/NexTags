@@ -22,6 +22,7 @@ interface Song {
   SortAlbum?: string;
   Lyrics?: string;
   Comment?: string;
+  JfId?: string;
 }
 
 interface ApiResponse {
@@ -110,7 +111,8 @@ export default function Home() {
             language: song.Language,
             favorite: song.Favorite,
             lyrics: song.Lyrics || '',
-            comment: song.Comment || ''
+            comment: song.Comment || '',
+            jfid: song.JfId || ''
           }]
         })
       });
@@ -128,10 +130,9 @@ export default function Home() {
   };
 
   return (
-    <div className="container max-w-screen mx-auto px-8 py-4">
+    <div className="mx-auto px-8 py-4">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-          <Music className="h-6 w-6" />
+        <h1 className="text-2xl font-bold text-gray-900 mt-4 mb-6 flex items-center gap-2">
           歌曲管理
         </h1>
 

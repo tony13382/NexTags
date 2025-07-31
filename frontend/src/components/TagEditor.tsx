@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { X, ArrowRight, Save, Upload, Image as ImageIcon } from 'lucide-react';
+import { X, ArrowRight, Save, Upload, Image as ImageIcon, Search } from 'lucide-react';
 
 interface Song {
   Title: string;
@@ -173,6 +173,36 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
     }
   };
 
+  const autoMatchJellyfinId = async () => {
+    if (!editedSong?.Title || !editedSong?.Artist || !editedSong?.Album) {
+      console.warn('需要標題、藝術家和專輯資訊才能進行自動匹配');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/jellyfin/songs?title=${encodeURIComponent(editedSong.Title)}&artist=${encodeURIComponent(editedSong.Artist)}&album=${encodeURIComponent(editedSong.Album)}&limit=1`);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.songs && data.songs.length > 0) {
+          const jellyfinId = data.songs[0].Id;
+          handleInputChange('JfId', jellyfinId);
+          console.log('自動匹配成功，Jellyfin ID:', jellyfinId);
+        } else {
+          console.warn('未找到匹配的 Jellyfin 歌曲');
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Jellyfin 搜尋失敗:', response.status, response.statusText, errorData);
+      }
+    } catch (error) {
+      console.error('自動匹配 Jellyfin ID 失敗:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const processLyrics = async () => {
     if (!editedSong?.Lyrics) return;
 
@@ -261,7 +291,7 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
                       e.stopPropagation();
                       removeCoverImage();
                     }}
-                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors"
+                    className="absolute top-2 right-2 bg-gray-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center transition-colors"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -438,13 +468,28 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
               />
             </div>
-            <div>
-              <label className="text-gray-500 block mb-1">Jellyfin ID</label>
-              <Input
-                value={editedSong.JfId || ''}
-                onChange={(e) => handleInputChange('JfId', e.target.value)}
-                placeholder="輸入 Jellyfin ID..."
-              />
+            <div className="flex items-end bg-white rounded-lg gap-4">
+              <div className="flex-1">
+                <label className="text-gray-500 block mb-1">Jellyfin ID</label>
+                <Input
+                  value={editedSong.JfId || ''}
+                  onChange={(e) => handleInputChange('JfId', e.target.value)}
+                  placeholder="輸入 Jellyfin ID..."
+                />
+              </div>
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={autoMatchJellyfinId}
+                  disabled={loading || !editedSong.Title || !editedSong.Artist || !editedSong.Album}
+                  className="w-auto h-9 px-3"
+                  title="根據標題、藝術家和專輯自動匹配 Jellyfin ID"
+                >
+                  <Search className="h-4 w-4 mr-1" />
+                  自動匹配
+                </Button>
+              </div>
             </div>
           </div>
           {/* Other Fields */}
