@@ -352,35 +352,35 @@ export default function PlaylistsPage() {
                       <td className="px-4 py-3 max-w-[280px] min-w-[100px] text-center">
                         <Link
                           href={`/playlist/${index}`}
-                          className="m-2 inline-flex items-center p-3 text-xs bg-gray-100 text-gray-800 rounded hover:bg-gray-300"
+                          className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
                           title="查看播放清單"
                         >
-                          <ListMusic className="w-6 h-6" />
+                          <ListMusic className="w-5 h-5" />
                         </Link>
                         <button
                           onClick={() => handleEditPlaylist(playlist, index)}
-                          className="m-2 inline-flex items-center p-3 text-xs bg-gray-100 text-gray-800 rounded hover:bg-gray-300"
+                          className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
                           title="編輯播放清單"
                         >
-                          <Edit className="w-6 h-6" />
+                          <Edit className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleSyncToJellyfin(index, playlist)}
                           disabled={syncingIndex === index}
-                          className={`m-2 inline-flex items-center p-3 text-xs rounded ${syncingIndex === index
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-gray-100 text-gray-800 hover:bg-gray-300'
+                          className={`m-1 inline-flex items-center p-2 text-xs rounded ${syncingIndex === index
+                            ? 'bg-gray-50 text-gray-50 cursor-not-allowed'
+                            : 'border text-gray-800 hover:bg-gray-100'
                             }`}
                           title={playlist.jellyfin_playlist_id ? "同步到 Jellyfin" : "需要設定 Jellyfin Playlist ID"}
                         >
-                          <RefreshCcw className={`w-6 h-6 ${syncingIndex === index ? 'animate-spin' : ''}`} />
+                          <RefreshCcw className={`w-5 h-5 ${syncingIndex === index ? 'animate-spin' : ''}`} />
                         </button>
                         <button
                           onClick={() => handleDeletePlaylist(playlist, index)}
-                          className="m-2 inline-flex items-center p-3 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200"
+                          className="m-1 inline-flex items-center p-2 text-xs text-red-800 rounded border border-red-200 hover:bg-red-100"
                           title="刪除播放清單"
                         >
-                          <Trash2 className="w-6 h-6" />
+                          <Trash2 className="w-5 h-5" />
                         </button>
                       </td>
                     </tr>

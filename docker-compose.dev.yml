@@ -5,15 +5,16 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
-    ports:
-      - "6000:8000"
     volumes:
       - ./backend:/app
       - /app/.venv
-      - C:/Users/tony1/Music:/Music
+      - ./Music:/Music
+      - app-data:/app/data
     environment:
       - PYTHONPATH=/app
     restart: unless-stopped
+    networks:
+      - app-network
     develop:
       watch:
         - action: sync
@@ -39,8 +40,10 @@ services:
     environment:
       - NODE_ENV=development
       - WATCHPACK_POLLING=true
-      - NEXT_PUBLIC_API_URL=http://localhost:6000
+      - NEXT_PUBLIC_API_URL=http://backend:8000
     restart: unless-stopped
+    networks:
+      - app-network
     develop:
       watch:
         - action: sync
@@ -50,3 +53,10 @@ services:
             - node_modules/
             - .next/
             - .git/
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  app-data:
