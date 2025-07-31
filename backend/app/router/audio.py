@@ -151,6 +151,7 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
             "Lyrics": tag_to_string(tags.get('lyrics', ''), 'lyrics'),
             "Comment": tag_to_string(tags.get('comment', ''), 'comment'),
             "JfId": tag_to_string(tags.get('jfid', ''), 'jfid'),
+            "JellyfinAddTime": tag_to_string(tags.get('jellyfin_add_time', ''), 'jellyfin_add_time'),
             "ModificationTime": modification_time
         }
     except Exception:
@@ -172,6 +173,7 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
             "Lyrics": "",
             "Comment": "",
             "JfId": "",
+            "JellyfinAddTime": "",
             "ModificationTime": modification_time
         }
 
@@ -223,13 +225,37 @@ def _get_file_modification_time(file_path: str) -> float:
     except Exception:
         return 0
 
+def _get_jellyfin_add_time(file_path: str) -> float:
+    """獲取 Jellyfin 添加時間的時間戳"""
+    try:
+        from datetime import datetime
+        tags = tags_cache.get_cached_tags_with_fallback(file_path)
+        jellyfin_add_time = tags.get('jellyfin_add_time', '').strip()
+        
+        if jellyfin_add_time:
+            try:
+                # Jellyfin 時間格式通常是 ISO 格式
+                if 'T' in jellyfin_add_time:
+                    clean_date = jellyfin_add_time.split('.')[0] if '.' in jellyfin_add_time else jellyfin_add_time.rstrip('Z')
+                    return datetime.fromisoformat(clean_date).timestamp()
+                else:
+                    return datetime.fromisoformat(jellyfin_add_time).timestamp()
+            except Exception:
+                pass
+        
+        # 如果沒有 jellyfin_add_time 或解析失敗，使用檔案修改時間
+        return _get_file_modification_time(file_path)
+    except Exception:
+        return 0
+
 @router.get("/")
 async def get_audios(
     p: Optional[int] = Query(1, ge=1, description="頁數，從1開始"),
     details: bool = Query(False, description="是否回傳詳細資訊"),
     filterTitle: Optional[str] = Query(None, description="標題過濾，模糊搜尋"),
     filterFolder: Optional[str] = Query(None, description="資料夾過濾"),
-    filterFavorite: Optional[str] = Query(None, description="最愛過濾，True或False")
+    filterFavorite: Optional[str] = Query(None, description="最愛過濾，True或False"),
+    sortBy: Optional[str] = Query("jellyfin_add_time", description="排序方式：jellyfin_add_time 或 modification_time")
 ):
     """獲取允許資料夾中的所有音訊檔案路徑（併發優化版本，支援分頁）"""
     try:
@@ -239,13 +265,21 @@ async def get_audios(
         music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
         
         # 準備所有要掃描的資料夾路徑
-        folder_paths = []
-        for folder_name in allow_folders:
-            folder_path = os.path.join(music_base_path, folder_name)
-            folder_paths.append(folder_path)
+        # 從快取中取得所有音檔路徑
+        cached_files = tags_cache._cache.keys()
+        all_audio_files = []
         
-        # 併發掃描所有資料夾
-        all_audio_files = await scan_multiple_folders_concurrent(folder_paths)
+        # 篩選出符合允許資料夾的檔案
+        for file_path in cached_files:
+            for folder_name in allow_folders:
+                folder_path = os.path.join(music_base_path, folder_name)
+                if file_path.startswith(folder_path):
+                    # 檢查檔案副檔名是否在支援列表中
+                    audio_extensions = {'.flac', '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.wma'}
+                    file_ext = os.path.splitext(file_path)[1].lower()
+                    if file_ext and file_ext in audio_extensions:
+                        all_audio_files.append(file_path)
+                    break  # 找到匹配的資料夾後跳出內層迴圈
         
         # 檢查是否需要過濾（有任何過濾參數或需要詳細資訊）
         has_filters = filterTitle or filterFolder or filterFavorite
@@ -261,8 +295,26 @@ async def get_audios(
             else:
                 filtered_info = all_detailed_info
             
-            # 按修改時間排序（最新的在前）
-            filtered_info.sort(key=lambda x: x.get('ModificationTime', 0), reverse=True)
+            # 根據排序方式排序（最新的在前）
+            if sortBy == "jellyfin_add_time":
+                def get_sort_time(item):
+                    jellyfin_time = item.get('JellyfinAddTime', '').strip()
+                    if jellyfin_time:
+                        try:
+                            from datetime import datetime
+                            if 'T' in jellyfin_time:
+                                clean_date = jellyfin_time.split('.')[0] if '.' in jellyfin_time else jellyfin_time.rstrip('Z')
+                                return datetime.fromisoformat(clean_date).timestamp()
+                            else:
+                                return datetime.fromisoformat(jellyfin_time).timestamp()
+                        except Exception:
+                            pass
+                    return item.get('ModificationTime', 0)
+                
+                filtered_info.sort(key=get_sort_time, reverse=True)
+            else:
+                # 按修改時間排序（最新的在前）
+                filtered_info.sort(key=lambda x: x.get('ModificationTime', 0), reverse=True)
             
             # 分頁參數（基於過濾後的結果）
             page_size = 100
@@ -282,8 +334,12 @@ async def get_audios(
             
         else:
             # 簡單模式（無過濾，無詳細資訊）
-            # 按修改時間排序（最新的在前）
-            all_audio_files.sort(key=lambda x: _get_file_modification_time(x), reverse=True)
+            # 根據排序方式排序（最新的在前）
+            if sortBy == "jellyfin_add_time":
+                all_audio_files.sort(key=lambda x: _get_jellyfin_add_time(x), reverse=True)
+            else:
+                # 按修改時間排序（最新的在前）
+                all_audio_files.sort(key=lambda x: _get_file_modification_time(x), reverse=True)
             
             page_size = 100
             total_count = len(all_audio_files)
@@ -316,7 +372,8 @@ async def get_audios(
                 "title": filterTitle,
                 "folder": filterFolder,
                 "favorite": filterFavorite
-            }
+            },
+            "sort_by": sortBy
         }
         
     except FileNotFoundError:

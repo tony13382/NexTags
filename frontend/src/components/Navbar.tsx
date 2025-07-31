@@ -32,6 +32,15 @@ export default function Navbar() {
             >
               播放清單管理
             </Link>
+            <Link
+              href="/cache"
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === '/cache'
+                ? 'bg-gray-600 text-white'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                }`}
+            >
+              快取管理
+            </Link>
           </div>
         </div>
       </div>

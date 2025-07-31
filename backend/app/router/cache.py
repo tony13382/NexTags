@@ -131,3 +131,75 @@ async def get_cache_status():
     except Exception as e:
         logger.error(f"獲取快取狀態時發生錯誤: {str(e)}")
         raise HTTPException(status_code=500, detail=f"獲取快取狀態時發生錯誤: {str(e)}")
+
+@router.get("/statistics")
+async def get_cache_statistics():
+    """獲取快取統計資訊，包含實際檔案和快取數據的詳細分析"""
+    try:
+        # 載入設定檔
+        config = load_config()
+        allow_folders = config.get('allow_folders', [])
+        
+        music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
+        
+        # 獲取實際檔案統計
+        actual_files_stats = {}
+        total_actual_files = 0
+        
+        for folder_name in allow_folders:
+            folder_path = os.path.join(music_base_path, folder_name)
+            if os.path.exists(folder_path) and os.path.isdir(folder_path):
+                audio_files = await get_audio_files_in_folder(folder_path)
+                count = len(audio_files)
+                actual_files_stats[folder_name] = count
+                total_actual_files += count
+            else:
+                actual_files_stats[folder_name] = 0
+        
+        # 獲取快取檔案統計
+        cached_files_stats = {}
+        total_cached_files = 0
+        
+        for folder_name in allow_folders:
+            folder_path = os.path.join(music_base_path, folder_name)
+            count = 0
+            
+            # 計算快取中該資料夾的檔案數量
+            for cached_file_path in tags_cache._cache.keys():
+                if cached_file_path.startswith(folder_path):
+                    count += 1
+            
+            cached_files_stats[folder_name] = count
+            total_cached_files += count
+        
+        # 快取檔案基本資訊
+        cache_file_exists = os.path.exists(tags_cache.cache_file_path)
+        cache_file_size = 0
+        if cache_file_exists:
+            try:
+                cache_file_size = os.path.getsize(tags_cache.cache_file_path)
+            except:
+                pass
+        
+        return {
+            "actual_files": {
+                "total": total_actual_files,
+                "by_folder": actual_files_stats
+            },
+            "cached_files": {
+                "total": total_cached_files,
+                "by_folder": cached_files_stats
+            },
+            "cache_info": {
+                "cache_file_exists": cache_file_exists,
+                "cache_file_path": tags_cache.cache_file_path,
+                "cache_file_size_bytes": cache_file_size
+            },
+            "folders": allow_folders
+        }
+        
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="config.yaml 檔案不存在")
+    except Exception as e:
+        logger.error(f"獲取快取統計時發生錯誤: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"獲取快取統計時發生錯誤: {str(e)}")

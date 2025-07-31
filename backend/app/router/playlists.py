@@ -104,14 +104,20 @@ def find_audio_files(base_folder: str) -> List[str]:
         return audio_files
     
     try:
-        for ext in SUPPORTED_AUDIO_EXTENSIONS:
-            pattern = os.path.join(full_path, "**", f"*{ext}")
-            files = glob.glob(pattern, recursive=True)
-            audio_files.extend(files)
+        # 從快取中取得所有音檔路徑
+        cached_files = tags_cache._cache.keys()
+        
+        # 篩選出符合基礎資料夾路徑的檔案
+        for file_path in cached_files:
+            if file_path.startswith(full_path):
+                # 檢查檔案副檔名是否在支援列表中
+                file_ext = os.path.splitext(file_path)[1].lower()
+                if file_ext in SUPPORTED_AUDIO_EXTENSIONS:
+                    audio_files.append(file_path)
         
         # 去重並按檔案路徑排序，確保每次執行順序一致
         audio_files = sorted(list(set(audio_files)))
-        logger.info(f"在資料夾 {full_path} 中找到 {len(audio_files)} 個音訊檔案")
+        logger.info(f"從快取中找到資料夾 {full_path} 中的 {len(audio_files)} 個音訊檔案")
         
     except Exception as e:
         logger.error(f"搜尋音訊檔案失敗: {str(e)}")

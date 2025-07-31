@@ -23,6 +23,7 @@ interface Song {
   Lyrics?: string;
   Comment?: string;
   JfId?: string;
+  JellyfinAddTime?: string;
 }
 
 interface ApiResponse {
@@ -112,7 +113,8 @@ export default function Home() {
             favorite: song.Favorite,
             lyrics: song.Lyrics || '',
             comment: song.Comment || '',
-            jfid: song.JfId || ''
+            jfid: song.JfId || '',
+            jellyfin_add_time: song.JellyfinAddTime || ''
           }]
         })
       });
