@@ -10,7 +10,7 @@ services:
     volumes:
       - ./backend:/app
       - /app/.venv
-      - ./Music:/Music
+      - C:/Users/tony1/Music:/Music
     environment:
       - PYTHONPATH=/app
     restart: unless-stopped

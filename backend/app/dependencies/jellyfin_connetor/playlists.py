@@ -248,25 +248,56 @@ class JellyfinPlaylistsClient:
             logger.error("無法取得用戶 ID")
             return None
         
-        data = {
-            "Name": name,
-            "Overview": description,
-            "Ids": song_ids or [],
-            "UserId": user_id
-        }
-        
-        result = await self._make_request("POST", "Playlists", data=data)
-        
-        if result and "Id" in result:
-            playlist_id = result["Id"]
-            logger.info(f"成功建立播放清單: {name} (ID: {playlist_id})")
-            return playlist_id
-        
-        logger.error(f"建立播放清單失敗: {name}")
-        return None
+        # 如果歌曲數量過多，先建立空播放清單，再分批添加歌曲
+        if song_ids and len(song_ids) > 50:
+            logger.info(f"歌曲數量過多 ({len(song_ids)})，將先建立空播放清單再分批添加歌曲")
+            
+            # 先建立空播放清單
+            data = {
+                "Name": name,
+                "Overview": description,
+                "Ids": [],
+                "UserId": user_id
+            }
+            
+            result = await self._make_request("POST", "Playlists", data=data)
+            
+            if result and "Id" in result:
+                playlist_id = result["Id"]
+                logger.info(f"成功建立空播放清單: {name} (ID: {playlist_id})")
+                
+                # 分批添加歌曲
+                success = await self.add_songs_to_playlist(playlist_id, song_ids)
+                if success:
+                    logger.info(f"成功建立播放清單並添加 {len(song_ids)} 首歌曲: {name}")
+                    return playlist_id
+                else:
+                    logger.error(f"建立播放清單成功但添加歌曲失敗: {name}")
+                    return playlist_id  # 仍返回播放清單 ID，因為播放清單已建立
+            else:
+                logger.error(f"建立播放清單失敗: {name}")
+                return None
+        else:
+            # 歌曲數量不多，直接建立
+            data = {
+                "Name": name,
+                "Overview": description,
+                "Ids": song_ids or [],
+                "UserId": user_id
+            }
+            
+            result = await self._make_request("POST", "Playlists", data=data)
+            
+            if result and "Id" in result:
+                playlist_id = result["Id"]
+                logger.info(f"成功建立播放清單: {name} (ID: {playlist_id})")
+                return playlist_id
+            
+            logger.error(f"建立播放清單失敗: {name}")
+            return None
     
     async def add_songs_to_playlist(self, playlist_id: str, song_ids: List[str]) -> bool:
-        """添加歌曲到播放清單
+        """添加歌曲到播放清單（支援批次處理以避免 URL 過長）
         
         Args:
             playlist_id: 播放清單 ID
@@ -276,6 +307,13 @@ class JellyfinPlaylistsClient:
             操作是否成功
         """
         logger.info(f"添加 {len(song_ids)} 首歌曲到播放清單: {playlist_id}")
+        logger.info(f"歌曲 ID 順序檢查 (前5個):")
+        for i, song_id in enumerate(song_ids[:5]):
+            logger.info(f"  位置 {i+1}: {song_id}")
+        
+        if not song_ids:
+            logger.info("沒有歌曲需要添加")
+            return True
         
         # 取得用戶 ID
         user_id = await get_authenticated_user_id()
@@ -283,22 +321,45 @@ class JellyfinPlaylistsClient:
             logger.error("無法取得用戶 ID")
             return False
         
-        params = {
-            "userId": user_id,
-            "ids": ",".join(song_ids)
-        }
+        # 批次處理以避免 URL 過長（HTTP 414 錯誤）
+        batch_size = 50  # 每批最多50首歌曲
+        total_batches = (len(song_ids) + batch_size - 1) // batch_size
+        successful_batches = 0
         
-        result = await self._make_request("POST", f"Playlists/{playlist_id}/Items", params)
+        logger.info(f"將 {len(song_ids)} 首歌曲分成 {total_batches} 批次處理")
         
-        if result:
-            logger.info(f"成功添加歌曲到播放清單: {playlist_id}")
+        for batch_num in range(total_batches):
+            start_idx = batch_num * batch_size
+            end_idx = min(start_idx + batch_size, len(song_ids))
+            batch_song_ids = song_ids[start_idx:end_idx]
+            
+            logger.info(f"處理第 {batch_num + 1}/{total_batches} 批次，包含 {len(batch_song_ids)} 首歌曲")
+            logger.info(f"第 {batch_num + 1} 批次歌曲 ID 順序: {','.join(batch_song_ids[:3])}...")
+            
+            params = {
+                "userId": user_id,
+                "ids": ",".join(batch_song_ids)
+            }
+            
+            result = await self._make_request("POST", f"Playlists/{playlist_id}/Items", params)
+            
+            if result:
+                successful_batches += 1
+                logger.info(f"第 {batch_num + 1} 批次添加成功")
+            else:
+                logger.error(f"第 {batch_num + 1} 批次添加失敗")
+                # 繼續處理下一批次，不立即返回 False
+        
+        # 檢查是否所有批次都成功
+        if successful_batches == total_batches:
+            logger.info(f"成功添加所有 {len(song_ids)} 首歌曲到播放清單: {playlist_id}")
             return True
-        
-        logger.error(f"添加歌曲到播放清單失敗: {playlist_id}")
-        return False
+        else:
+            logger.error(f"只有 {successful_batches}/{total_batches} 批次成功，添加歌曲到播放清單部分失敗: {playlist_id}")
+            return False
     
     async def remove_songs_from_playlist(self, playlist_id: str, playlist_item_ids: List[str]) -> bool:
-        """從播放清單移除歌曲
+        """從播放清單移除歌曲（支援批次處理以避免 URL 過長）
         
         Args:
             playlist_id: 播放清單 ID
@@ -322,34 +383,55 @@ class JellyfinPlaylistsClient:
             logger.error("無法取得認證標頭")
             return False
         
-        # 批次移除項目（使用逗號分隔的 EntryIds）
-        entry_ids_param = ",".join(valid_ids)
-        params = {
-            "EntryIds": entry_ids_param
-        }
+        # 批次處理以避免 URL 過長（HTTP 414 錯誤）
+        batch_size = 50  # 每批最多50個項目
+        total_batches = (len(valid_ids) + batch_size - 1) // batch_size
+        successful_batches = 0
         
-        logger.info(f"DEBUG: 批次移除項目: {entry_ids_param}")
+        logger.info(f"將 {len(valid_ids)} 個項目分成 {total_batches} 批次移除")
         
-        # 使用正確的 DELETE API
-        delete_url = f"{self.host}/Playlists/{playlist_id}/Items"
-        url_with_params = f"{delete_url}?{urlencode(params)}"
+        for batch_num in range(total_batches):
+            start_idx = batch_num * batch_size
+            end_idx = min(start_idx + batch_size, len(valid_ids))
+            batch_ids = valid_ids[start_idx:end_idx]
+            
+            logger.info(f"處理第 {batch_num + 1}/{total_batches} 批次，包含 {len(batch_ids)} 個項目")
+            
+            # 批次移除項目（使用逗號分隔的 EntryIds）
+            entry_ids_param = ",".join(batch_ids)
+            params = {
+                "EntryIds": entry_ids_param
+            }
+            
+            logger.info(f"DEBUG: 第 {batch_num + 1} 批次移除項目: {entry_ids_param}")
+            
+            # 使用正確的 DELETE API
+            delete_url = f"{self.host}/Playlists/{playlist_id}/Items"
+            url_with_params = f"{delete_url}?{urlencode(params)}"
+            
+            logger.info(f"DEBUG: DELETE URL: {url_with_params}")
+            
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.delete(url_with_params, headers=auth_headers)
+                    logger.info(f"DEBUG: 第 {batch_num + 1} 批次 DELETE 回應狀態碼: {response.status_code}")
+                    
+                    if response.status_code == 204:
+                        successful_batches += 1
+                        logger.info(f"第 {batch_num + 1} 批次移除成功，移除了 {len(batch_ids)} 個項目")
+                    else:
+                        logger.error(f"第 {batch_num + 1} 批次 DELETE 失敗: {response.status_code} - {response.text}")
+                        # 繼續處理下一批次，不立即返回 False
+            except Exception as e:
+                logger.error(f"第 {batch_num + 1} 批次 DELETE 請求異常: {str(e)}")
+                # 繼續處理下一批次，不立即返回 False
         
-        logger.info(f"DEBUG: DELETE URL: {url_with_params}")
-        logger.info(f"DEBUG: 認證標頭: {auth_headers}")
-        
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.delete(url_with_params, headers=auth_headers)
-                logger.info(f"DEBUG: DELETE 回應狀態碼: {response.status_code}")
-                
-                if response.status_code == 204:
-                    logger.info(f"成功移除 {len(valid_ids)} 個項目")
-                    return True
-                else:
-                    logger.error(f"DELETE 失敗: {response.status_code} - {response.text}")
-                    return False
-        except Exception as e:
-            logger.error(f"DELETE 請求異常: {str(e)}")
+        # 檢查是否所有批次都成功
+        if successful_batches == total_batches:
+            logger.info(f"成功移除所有 {len(valid_ids)} 個項目")
+            return True
+        else:
+            logger.error(f"只有 {successful_batches}/{total_batches} 批次成功，移除項目部分失敗")
             return False
     
     async def clear_playlist(self, playlist_id: str) -> bool:

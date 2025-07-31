@@ -25,7 +25,8 @@ def write_mp4_tags(audio, tags_dict):
         'titlesort': 'sonm',
         'artistsort': 'soar',
         'albumsort': 'soal',
-        'jfid': 'JFID'
+        'jfid': 'JFID',
+        'jellyfin_add_time': 'JELLYFIN_ADD_TIME'
     }
     
     for key, value in tags_dict.items():
@@ -43,6 +44,15 @@ def write_mp4_tags(audio, tags_dict):
                     audio[mp4_key] = [str(v) for v in value if v]
                 else:
                     audio[mp4_key] = [str(value)]
+            elif key in ['artist', 'artistsort']:
+                # 處理多歌手格式（分號分隔）
+                if isinstance(value, str) and ';' in value:
+                    artists = [artist.strip() for artist in value.split(';') if artist.strip()]
+                    audio[mp4_key] = artists
+                elif isinstance(value, list):
+                    audio[mp4_key] = [str(v) for v in value if v]
+                else:
+                    audio[mp4_key] = [str(value)]
             else:
                 audio[mp4_key] = [str(value)]
 
@@ -53,9 +63,21 @@ def write_flac_tags(audio, tags_dict):
         if key == 'genre' and isinstance(value, list):
             # 處理流派列表格式
             audio[key.upper()] = [str(v) for v in value if v]
+        elif key in ['artist', 'artistsort']:
+            # 處理多歌手格式（分號分隔）
+            if isinstance(value, str) and ';' in value:
+                artists = [artist.strip() for artist in value.split(';') if artist.strip()]
+                audio[key.upper()] = artists
+            elif isinstance(value, list):
+                audio[key.upper()] = [str(v) for v in value if v]
+            else:
+                audio[key.upper()] = [str(value)]
         elif key == 'jfid':
             # 處理 jfid 標籤
             audio['JFID'] = [str(value)]
+        elif key == 'jellyfin_add_time':
+            # 處理 jellyfin_add_time 標籤
+            audio['JELLYFIN_ADD_TIME'] = [str(value)]
         else:
             audio[key.upper()] = [str(value)]
 
@@ -66,9 +88,21 @@ def write_ogg_tags(audio, tags_dict):
         if key == 'genre' and isinstance(value, list):
             # 處理流派列表格式
             audio[key.upper()] = [str(v) for v in value if v]
+        elif key in ['artist', 'artistsort']:
+            # 處理多歌手格式（分號分隔）
+            if isinstance(value, str) and ';' in value:
+                artists = [artist.strip() for artist in value.split(';') if artist.strip()]
+                audio[key.upper()] = artists
+            elif isinstance(value, list):
+                audio[key.upper()] = [str(v) for v in value if v]
+            else:
+                audio[key.upper()] = [str(value)]
         elif key == 'jfid':
             # 處理 jfid 標籤
             audio['JFID'] = [str(value)]
+        elif key == 'jellyfin_add_time':
+            # 處理 jellyfin_add_time 標籤
+            audio['JELLYFIN_ADD_TIME'] = [str(value)]
         else:
             audio[key.upper()] = [str(value)]
 
@@ -106,10 +140,24 @@ def write_mp3_tags(audio, tags_dict):
                 audio.tags['TCON'] = TCON(encoding=3, text=[str(v) for v in value if v])
             else:
                 audio.tags['TCON'] = TCON(encoding=3, text=[str(value)])
+        elif key in ['artist', 'artistsort']:
+            # 處理多歌手格式（分號分隔）
+            tag_class = tag_mapping[key]
+            if isinstance(value, str) and ';' in value:
+                artists = [artist.strip() for artist in value.split(';') if artist.strip()]
+                audio.tags[tag_class.__name__] = tag_class(encoding=3, text=artists)
+            elif isinstance(value, list):
+                audio.tags[tag_class.__name__] = tag_class(encoding=3, text=[str(v) for v in value if v])
+            else:
+                audio.tags[tag_class.__name__] = tag_class(encoding=3, text=[str(value)])
         elif key == 'jfid':
             # 對於 jfid，使用自定義 TXXX 框架
             from mutagen.id3 import TXXX
             audio.tags['TXXX:JFID'] = TXXX(encoding=3, desc='JFID', text=str(value))
+        elif key == 'jellyfin_add_time':
+            # 對於 jellyfin_add_time，使用自定義 TXXX 框架
+            from mutagen.id3 import TXXX
+            audio.tags['TXXX:JELLYFIN_ADD_TIME'] = TXXX(encoding=3, desc='JELLYFIN_ADD_TIME', text=str(value))
         elif key in tag_mapping and tag_mapping[key] is not None:
             tag_class = tag_mapping[key]
             audio.tags[tag_class.__name__] = tag_class(encoding=3, text=str(value))

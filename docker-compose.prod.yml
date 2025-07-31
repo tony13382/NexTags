@@ -4,7 +4,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile.prod
     volumes:
-      - ./Music:/Music
+      - C:/Users/tony1/Music:/Music
     environment:
       - PYTHONPATH=/app
       - NODE_ENV=production

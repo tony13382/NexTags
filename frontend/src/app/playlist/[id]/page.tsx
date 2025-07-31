@@ -6,6 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
 
+interface SongWithDate {
+    file_path: string | null;
+    jellyfin_date_created: string | null;
+    formatted_date: string;
+    jellyfin_id: string;
+    song_name: string;
+}
+
 interface PlaylistSongsResponse {
     success: boolean;
     message: string;
@@ -18,8 +26,9 @@ interface PlaylistSongsResponse {
         filter_favorites: boolean | null;
         total_files_found: number;
         files_after_filtering: number;
+        sort_method?: string;
     };
-    songs: string[];
+    songs: SongWithDate[];
     total_count: number;
 }
 
@@ -57,11 +66,17 @@ export default function PlaylistDetailPage() {
         }
     };
 
-    const getFileName = (filePath: string) => {
+    const getFileName = (filePath: string | null | undefined) => {
+        if (!filePath || typeof filePath !== 'string') {
+            return '';
+        }
         return filePath.split('/').pop() || filePath;
     };
 
-    const getFileExtension = (fileName: string) => {
+    const getFileExtension = (fileName: string | null | undefined) => {
+        if (!fileName || typeof fileName !== 'string') {
+            return '';
+        }
         return fileName.split('.').pop()?.toUpperCase() || '';
     };
 
@@ -200,7 +215,18 @@ export default function PlaylistDetailPage() {
             {/* 歌曲列表 */}
             <div className="bg-white border rounded-2xl p-0 overflow-hidden">
                 <div className="p-4 font-bold">
-                    <p>歌曲列表 ({playlistData.total_count} 首)</p>
+                    <p>歌曲列表 ({playlistData.total_count} 首)
+                        {playlistData.filter_summary.sort_method === 'local_jellyfin_add_time' &&
+                            <span className="text-sm text-green-600 font-normal ml-2">
+                                ✓ 按本地 jellyfin_add_time 標籤排序 (新→舊)
+                            </span>
+                        }
+                        {playlistData.filter_summary.sort_method === 'jellyfin_date_created' &&
+                            <span className="text-sm text-blue-600 font-normal ml-2">
+                                ✓ 按 Jellyfin 加入時間排序 (新→舊)
+                            </span>
+                        }
+                    </p>
                 </div>
                 <div>
                     {playlistData.songs.length === 0 ? (
@@ -214,7 +240,10 @@ export default function PlaylistDetailPage() {
                                             #
                                         </th>
                                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">
-                                            檔案名稱
+                                            歌曲名稱
+                                        </th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">
+                                            加入時間
                                         </th>
                                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">
                                             格式
@@ -226,7 +255,7 @@ export default function PlaylistDetailPage() {
                                 </thead>
                                 <tbody>
                                     {playlistData.songs.map((song, index) => {
-                                        const fileName = getFileName(song);
+                                        const fileName = getFileName(song.file_path);
                                         const fileExtension = getFileExtension(fileName);
 
                                         return (
@@ -234,16 +263,26 @@ export default function PlaylistDetailPage() {
                                                 <td className="px-4 py-3 text-sm text-gray-500">
                                                     {index + 1}
                                                 </td>
-                                                <td className="px-4 py-3 text-sm text-gray-900 font-medium truncate max-w-[400px] min-w-[200px]">
-                                                    {fileName}
+                                                <td className="px-4 py-3 text-sm text-gray-900 font-medium truncate max-w-[300px] min-w-[150px]">
+                                                    {song.song_name || fileName}
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-gray-700 min-w-[150px]">
+                                                    {song.formatted_date ? (
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs text-gray-900">{song.formatted_date.split(' ')[0]}</span>
+                                                            <span className="text-xs text-gray-500">{song.formatted_date.split(' ')[1]}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-gray-400 text-xs">無日期資訊</span>
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm">
                                                     <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">
                                                         {fileExtension}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 py-3 text-sm text-gray-600 font-mono text-xs">
-                                                    {song}
+                                                <td className="px-4 py-3 text-sm text-gray-600 font-mono text-xs truncate max-w-[400px]">
+                                                    {song.file_path}
                                                 </td>
                                             </tr>
                                         );

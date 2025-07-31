@@ -92,7 +92,18 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
   if (!song || !editedSong) return null;
 
   const handleInputChange = (field: keyof Song, value: string | string[]) => {
-    setEditedSong(prev => prev ? { ...prev, [field]: value } : null);
+    // 處理多歌手輸入（分號分隔）
+    if (field === 'Artist' || field === 'SortArtist') {
+      if (typeof value === 'string' && value.includes(';')) {
+        // 分號分隔的多歌手，轉為陣列
+        const artists = value.split(';').map(artist => artist.trim()).filter(artist => artist.length > 0);
+        setEditedSong(prev => prev ? { ...prev, [field]: artists.join('; ') } : null);
+      } else {
+        setEditedSong(prev => prev ? { ...prev, [field]: value } : null);
+      }
+    } else {
+      setEditedSong(prev => prev ? { ...prev, [field]: value } : null);
+    }
   };
 
   const handleImageClick = () => {

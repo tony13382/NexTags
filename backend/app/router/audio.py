@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.schemas.audios import AudioTagsRequest, AudioTagsResponse, AudioUpdateRequest, AudioUpdateResponse
 from app.dependencies.mp3tag_reader import read_audio_tags
 from app.dependencies.mp3tag_writer import write_tags
+from app.dependencies.tags_cache import tags_cache
 import os
 import yaml
 import asyncio
@@ -68,8 +69,8 @@ def _find_cover_art(file_path: str) -> str:
 def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dict:
     """同步提取單個音訊檔案的詳細資訊"""
     try:
-        # 讀取標籤
-        tags = read_audio_tags(file_path)
+        # 使用快取讀取標籤
+        tags = tags_cache.get_cached_tags_with_fallback(file_path)
         
         # 取得檔案修改時間
         modification_time = os.path.getmtime(file_path) if os.path.exists(file_path) else 0
@@ -97,9 +98,13 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
         cover_path = _find_cover_art(file_path)
         
         # 輔助函數：將標籤值轉為字串
-        def tag_to_string(value):
+        def tag_to_string(value, field_name=None):
             if isinstance(value, list):
-                return ' '.join(str(v) for v in value) if value else ''
+                # Artist 和 SortArtist 使用分號分隔
+                if field_name in ['artist', 'artistsort']:
+                    return ';'.join(str(v) for v in value) if value else ''
+                else:
+                    return ' '.join(str(v) for v in value) if value else ''
             return str(value) if value else ''
         
         # 檢查最愛狀態的多種可能標籤名稱
@@ -131,21 +136,21 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
             return "False"
         
         return {
-            "Title": tag_to_string(tags.get('title', '')),
-            "SortTitle": tag_to_string(tags.get('titlesort', '')),
-            "Artist": tag_to_string(tags.get('artist', '')),
-            "SortArtist": tag_to_string(tags.get('artistsort', '')),
-            "Album": tag_to_string(tags.get('album', '')),
-            "SortAlbum": tag_to_string(tags.get('albumsort', '')),
+            "Title": tag_to_string(tags.get('title', ''), 'title'),
+            "SortTitle": tag_to_string(tags.get('titlesort', ''), 'titlesort'),
+            "Artist": tag_to_string(tags.get('artist', ''), 'artist'),
+            "SortArtist": tag_to_string(tags.get('artistsort', ''), 'artistsort'),
+            "Album": tag_to_string(tags.get('album', ''), 'album'),
+            "SortAlbum": tag_to_string(tags.get('albumsort', ''), 'albumsort'),
             "MainFolder": main_folder,
             "FilePath": file_path,
             "Genre": genre_list,
-            "Language": tag_to_string(tags.get('language', '')),
+            "Language": tag_to_string(tags.get('language', ''), 'language'),
             "Favorite": get_favorite_status(),
             "Cover": cover_path,
-            "Lyrics": tag_to_string(tags.get('lyrics', '')),
-            "Comment": tag_to_string(tags.get('comment', '')),
-            "JfId": tag_to_string(tags.get('jfid', '')),
+            "Lyrics": tag_to_string(tags.get('lyrics', ''), 'lyrics'),
+            "Comment": tag_to_string(tags.get('comment', ''), 'comment'),
+            "JfId": tag_to_string(tags.get('jfid', ''), 'jfid'),
             "ModificationTime": modification_time
         }
     except Exception:
@@ -361,6 +366,9 @@ async def update_audio_tags(request: AudioUpdateRequest):
                 message="無法更新檔案標籤"
             )
         
+        # 更新完標籤後，從快取中移除舊的標籤，讓下次讀取時重新載入
+        tags_cache.remove_tags(request.path)
+        
         return AudioUpdateResponse(
             success=True,
             message="成功更新標籤",
@@ -397,7 +405,8 @@ async def get_audio_tags(request: AudioTagsRequest):
         if not os.path.isfile(request.path):
             raise HTTPException(status_code=400, detail="路徑不是檔案")
         
-        tags = read_audio_tags(request.path)
+        # 使用快取讀取標籤
+        tags = tags_cache.get_cached_tags_with_fallback(request.path)
         folder = get_folder_from_path(request.path)
         
         if not tags:
