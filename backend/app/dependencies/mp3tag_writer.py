@@ -4,8 +4,36 @@ from mutagen.flac import FLAC
 from mutagen.mp3 import MP3
 from mutagen.oggvorbis import OggVorbis
 from mutagen.id3 import TIT2, TPE1, TALB, TPE2, TDRC, TRCK, TPOS, TSOT, TSOP, TSOA, COMM, USLT
+import yaml
+import os
 
 from app.dependencies.logger import logger
+
+
+def load_supported_genres():
+    """從 config.yaml 載入支援的流派"""
+    try:
+        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', 'config.yaml')
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+            return config.get('supported_tags', [])
+    except Exception as e:
+        logger.error(f"載入 config.yaml 失敗: {str(e)}")
+        return []
+
+
+def validate_genres(genres):
+    """驗證流派是否在支援清單中"""
+    supported_genres = load_supported_genres()
+    if not supported_genres:
+        return genres
+    
+    if isinstance(genres, list):
+        return [genre for genre in genres if genre in supported_genres]
+    elif isinstance(genres, str):
+        return genres if genres in supported_genres else None
+    
+    return None
 
 
 def write_mp4_tags(audio, tags_dict):
@@ -39,11 +67,16 @@ def write_mp4_tags(audio, tags_dict):
                 else:
                     audio[mp4_key] = [(int(value), 0)]
             elif key == 'genre':
-                # 處理流派列表格式
-                if isinstance(value, list):
-                    audio[mp4_key] = [str(v) for v in value if v]
+                # 處理流派列表格式並驗證
+                validated_genres = validate_genres(value)
+                if validated_genres is not None:
+                    if isinstance(validated_genres, list):
+                        if validated_genres:  # 只有非空列表才寫入
+                            audio[mp4_key] = [str(v) for v in validated_genres]
+                    else:
+                        audio[mp4_key] = [str(validated_genres)]
                 else:
-                    audio[mp4_key] = [str(value)]
+                    logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
             elif key in ['artist', 'artistsort']:
                 # 處理多歌手格式（分號分隔）
                 if isinstance(value, str) and ';' in value:
@@ -60,9 +93,17 @@ def write_mp4_tags(audio, tags_dict):
 def write_flac_tags(audio, tags_dict):
     """寫入 FLAC 格式的標籤"""
     for key, value in tags_dict.items():
-        if key == 'genre' and isinstance(value, list):
-            # 處理流派列表格式
-            audio[key.upper()] = [str(v) for v in value if v]
+        if key == 'genre':
+            # 處理流派列表格式並驗證
+            validated_genres = validate_genres(value)
+            if validated_genres is not None:
+                if isinstance(validated_genres, list):
+                    if validated_genres:  # 只有非空列表才寫入
+                        audio[key.upper()] = [str(v) for v in validated_genres]
+                else:
+                    audio[key.upper()] = [str(validated_genres)]
+            else:
+                logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
         elif key in ['artist', 'artistsort']:
             # 處理多歌手格式（分號分隔）
             if isinstance(value, str) and ';' in value:
@@ -85,9 +126,17 @@ def write_flac_tags(audio, tags_dict):
 def write_ogg_tags(audio, tags_dict):
     """寫入 OGG 格式的標籤"""
     for key, value in tags_dict.items():
-        if key == 'genre' and isinstance(value, list):
-            # 處理流派列表格式
-            audio[key.upper()] = [str(v) for v in value if v]
+        if key == 'genre':
+            # 處理流派列表格式並驗證
+            validated_genres = validate_genres(value)
+            if validated_genres is not None:
+                if isinstance(validated_genres, list):
+                    if validated_genres:  # 只有非空列表才寫入
+                        audio[key.upper()] = [str(v) for v in validated_genres]
+                else:
+                    audio[key.upper()] = [str(validated_genres)]
+            else:
+                logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
         elif key in ['artist', 'artistsort']:
             # 處理多歌手格式（分號分隔）
             if isinstance(value, str) and ';' in value:
@@ -135,11 +184,16 @@ def write_mp3_tags(audio, tags_dict):
             # 對於歌詞，使用 USLT 框架
             audio.tags['USLT::eng'] = USLT(encoding=3, lang='eng', desc='', text=str(value))
         elif key == 'genre':
-            # 處理流派列表格式
-            if isinstance(value, list):
-                audio.tags['TCON'] = TCON(encoding=3, text=[str(v) for v in value if v])
+            # 處理流派列表格式並驗證
+            validated_genres = validate_genres(value)
+            if validated_genres is not None:
+                if isinstance(validated_genres, list):
+                    if validated_genres:  # 只有非空列表才寫入
+                        audio.tags['TCON'] = TCON(encoding=3, text=[str(v) for v in validated_genres])
+                else:
+                    audio.tags['TCON'] = TCON(encoding=3, text=[str(validated_genres)])
             else:
-                audio.tags['TCON'] = TCON(encoding=3, text=[str(value)])
+                logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
         elif key in ['artist', 'artistsort']:
             # 處理多歌手格式（分號分隔）
             tag_class = tag_mapping[key]
