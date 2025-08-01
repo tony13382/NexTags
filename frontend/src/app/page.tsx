@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Music, Heart, Edit } from 'lucide-react';
+import { Search, Music, Heart, Edit, Plus } from 'lucide-react';
 import TagEditor from '@/components/TagEditor';
 
 interface Song {
@@ -134,9 +134,18 @@ export default function Home() {
   return (
     <div className="mx-auto px-8 py-4">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mt-4 mb-6 flex items-center gap-2">
-          歌曲管理
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-900 mt-4 mb-6 flex items-center gap-2">
+            歌曲管理
+          </h1>
+          <Button
+            className="flex items-center gap-2 mt-4 mb-6"
+            onClick={() => window.location.href = '/new'}
+          >
+            <Plus className="h-4 w-4" />
+            新增歌曲
+          </Button>
+        </div>
 
         {/* 搜尋和篩選區域 */}
         <Card className="mb-6">

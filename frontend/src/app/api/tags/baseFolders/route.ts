@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
     try {
-        // 在 Docker 容器內，使用容器名稱訪問後端
+        // 在 Docker 容器內，使用服務名稱訪問同網絡的後端服務
         const backendUrl = process.env.NODE_ENV === 'development'
             ? 'http://backend:8000'
             : 'http://localhost:6000';
@@ -14,7 +14,12 @@ export async function GET() {
         }
 
         const baseFolders = await response.json();
-        return NextResponse.json(baseFolders);
+
+        // 包裝成前端期望的格式
+        return NextResponse.json({
+            success: true,
+            base_folders: baseFolders
+        });
     } catch (error) {
         console.error('BaseFolders API route error:', error);
         return NextResponse.json(

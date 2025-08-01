@@ -5,11 +5,15 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
+    ports:
+      - "6000:8000"
     volumes:
       - ./backend:/app
       - /app/.venv
-      - ./Music:/Music
+      - ${MUSIC_ROOT_PATH}:/Music
       - app-data:/app/data
+    env_file:
+      - ./.env
     environment:
       - PYTHONPATH=/app
     restart: unless-stopped

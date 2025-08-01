@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, CloudUpload, Download } from 'lucide-react';
 
 interface SongWithDate {
     file_path: string | null;
@@ -40,6 +40,8 @@ export default function PlaylistDetailPage() {
     const [playlistData, setPlaylistData] = useState<PlaylistSongsResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [syncLoading, setSyncLoading] = useState(false);
+    const [downloadLoading, setDownloadLoading] = useState(false);
 
     useEffect(() => {
         if (playlistId) {
@@ -63,6 +65,56 @@ export default function PlaylistDetailPage() {
             console.error('Error fetching playlist songs:', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSyncToJellyfin = async () => {
+        try {
+            setSyncLoading(true);
+            const response = await fetch(`/api/playlists/${playlistId}/sync-to-jellyfin`, {
+                method: 'POST',
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert('成功同步到 Jellyfin！');
+            } else {
+                alert(`同步失敗：${data.message}`);
+            }
+        } catch (error) {
+            console.error('同步錯誤:', error);
+            alert('同步過程中發生錯誤');
+        } finally {
+            setSyncLoading(false);
+        }
+    };
+
+    const handleDownloadM3U = async () => {
+        try {
+            setDownloadLoading(true);
+            const response = await fetch(`/api/playlists/${playlistId}/download-m3u`);
+
+            if (response.ok) {
+                // 取得檔案內容並觸發下載
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${playlistData?.playlist_name || 'playlist'}.m3u`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            } else {
+                const errorData = await response.json();
+                alert(`下載失敗：${errorData.message}`);
+            }
+        } catch (error) {
+            console.error('下載錯誤:', error);
+            alert('下載過程中發生錯誤');
+        } finally {
+            setDownloadLoading(false);
         }
     };
 
@@ -142,17 +194,39 @@ export default function PlaylistDetailPage() {
 
     return (
         <div className="mx-auto px-8 py-4">
-            <div className="flex items-center gap-4 mb-6">
-                <Button
-                    onClick={() => router.back()}
-                    variant="outline"
-                >
-                    <ArrowLeft className="w-4 h-4" />
-                    返回
-                </Button>
-                <h1 className="text-2xl font-bold text-gray-900">
-                    {playlistData.playlist_name}
-                </h1>
+            <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                    <Button
+                        onClick={() => router.back()}
+                        variant="outline"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        返回
+                    </Button>
+                    <h1 className="text-2xl font-bold text-gray-900">
+                        {playlistData.playlist_name}
+                    </h1>
+                </div>
+                <div className="flex items-center gap-3">
+                    <Button
+                        onClick={handleDownloadM3U}
+                        disabled={downloadLoading}
+                        variant="outline"
+                        className="border-none bg-gray-50 text-gray-600 hover:bg-gray-200"
+                    >
+                        <Download className="w-4 h-4" />
+                        {downloadLoading ? '下載中...' : '下載 .m3u'}
+                    </Button>
+                    <Button
+                        onClick={handleSyncToJellyfin}
+                        disabled={syncLoading}
+                        variant="default"
+                        className="bg-gray-600 hover:bg-gray-700"
+                    >
+                        <CloudUpload className="w-4 h-4" />
+                        {syncLoading ? '同步中...' : '同步到 Jellyfin'}
+                    </Button>
+                </div>
             </div>
 
             {/* 篩選條件摘要 */}

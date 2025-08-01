@@ -68,6 +68,19 @@ export function DialogTitle({ className, children, ...props }: DialogTitleProps)
     )
 }
 
+type DialogDescriptionProps = React.ComponentProps<"p">
+
+export function DialogDescription({ className, children, ...props }: DialogDescriptionProps) {
+    return (
+        <p
+            className={cn("text-sm text-gray-600 mt-1", className)}
+            {...props}
+        >
+            {children}
+        </p>
+    )
+}
+
 interface DialogCloseProps {
     onClose: () => void
 }
