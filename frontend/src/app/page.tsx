@@ -105,9 +105,13 @@ export default function Home() {
             title: song.Title,
             artist: song.Artist,
             album: song.Album,
+            albumartist: song.AlbumArtist || '',
+            composer: song.Composer || '',
             titlesort: song.SortTitle,
             artistsort: song.SortArtist,
             albumsort: song.SortAlbum,
+            albumartistsort: song.SortAlbumArtist || '',
+            composersort: song.SortComposer || '',
             genre: song.Genre, // 保持陣列格式
             language: song.Language,
             favorite: song.Favorite,

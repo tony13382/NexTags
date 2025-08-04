@@ -18,12 +18,34 @@ def set_flac_tags(output_file, tags):
     """設定 FLAC 檔案的標籤"""
     flac_file = FLAC(output_file)
     
-    flac_file["artist"] = tags["artist"]
-    flac_file["album"] = tags["album"]
-    flac_file["title"] = tags["title"]
-    flac_file["artistsort"] = tags["artistsort"]
-    flac_file["albumsort"] = tags["albumsort"]
-    flac_file["titlesort"] = tags["titlesort"]
+    # 安全地獲取標籤值，如果不存在則使用空白字符串
+    def get_tag_value(key, mp4_key=None):
+        # 先嘗試標準鍵名
+        if key in tags:
+            value = tags[key]
+            if isinstance(value, list) and value:
+                return value[0] if value[0] else ""
+            return str(value) if value else ""
+        
+        # 如果有MP4鍵名，嘗試MP4格式的鍵名
+        if mp4_key and mp4_key in tags:
+            value = tags[mp4_key]
+            if isinstance(value, list) and value:
+                return value[0] if value[0] else ""
+            return str(value) if value else ""
+        
+        return ""
+    
+    flac_file["artist"] = get_tag_value("artist", "\xa9ART")
+    flac_file["album"] = get_tag_value("album", "\xa9alb")
+    flac_file["title"] = get_tag_value("title", "\xa9nam")
+    flac_file["albumartist"] = get_tag_value("albumartist", "aART")
+    flac_file["composer"] = get_tag_value("composer", "\xa9wrt")
+    flac_file["artistsort"] = get_tag_value("artistsort", "soar")
+    flac_file["albumsort"] = get_tag_value("albumsort", "soal")
+    flac_file["titlesort"] = get_tag_value("titlesort", "sonm")
+    flac_file["albumartistsort"] = get_tag_value("albumartistsort", "soaa")
+    flac_file["composersort"] = get_tag_value("composersort", "soco")
     
     flac_file.save()
 

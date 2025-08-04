@@ -9,7 +9,7 @@ export async function PUT(request: NextRequest) {
       ? 'http://backend:8000' 
       : 'http://localhost:6000';
     
-    const response = await fetch(`${backendUrl}/audios/`, {
+    const response = await fetch(`${backendUrl}/audios/update`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)

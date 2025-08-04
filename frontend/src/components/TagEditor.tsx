@@ -9,6 +9,8 @@ interface Song {
   Title: string;
   Artist: string;
   Album: string;
+  AlbumArtist?: string;
+  Composer?: string;
   MainFolder: string;
   FilePath: string;
   Genre: string[];
@@ -18,6 +20,8 @@ interface Song {
   SortTitle?: string;
   SortArtist?: string;
   SortAlbum?: string;
+  SortAlbumArtist?: string;
+  SortComposer?: string;
   Lyrics?: string;
   Comment?: string;
   JfId?: string;
@@ -43,9 +47,13 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
     if (song) {
       setEditedSong({
         ...song,
+        AlbumArtist: song.AlbumArtist || '',
+        Composer: song.Composer || '',
         SortTitle: song.SortTitle || '',
         SortArtist: song.SortArtist || '',
         SortAlbum: song.SortAlbum || '',
+        SortAlbumArtist: song.SortAlbumArtist || '',
+        SortComposer: song.SortComposer || '',
         Lyrics: song.Lyrics || '',
         Comment: song.Comment || '',
         JfId: song.JfId || '',
@@ -95,7 +103,7 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
 
   const handleInputChange = (field: keyof Song, value: string | string[]) => {
     // 處理多歌手輸入（分號分隔）
-    if (field === 'Artist' || field === 'SortArtist') {
+    if (field === 'Artist' || field === 'SortArtist' || field === 'AlbumArtist' || field === 'SortAlbumArtist' || field === 'Composer' || field === 'SortComposer') {
       if (typeof value === 'string' && value.includes(';')) {
         // 分號分隔的多歌手，轉為陣列
         const artists = value.split(';').map(artist => artist.trim()).filter(artist => artist.length > 0);
@@ -160,7 +168,7 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
     handleInputChange('Cover', '');
   };
 
-  const convertToPinyin = async (field: 'Title' | 'Artist' | 'Album') => {
+  const convertToPinyin = async (field: 'Title' | 'Artist' | 'Album' | 'AlbumArtist' | 'Composer') => {
     const sourceValue = editedSong[field];
     if (!sourceValue) return;
 
@@ -456,6 +464,64 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
                   value={editedSong.SortAlbum || ''}
                   onChange={(e) => handleInputChange('SortAlbum', e.target.value)}
                   placeholder="排序專輯"
+                />
+              </div>
+            </div>
+            <div className="flex items-end bg-white rounded-lg gap-4">
+              <div>
+                <label className="text-gray-500 block mb-1">AlbumArtist</label>
+                <Input
+                  value={editedSong.AlbumArtist || ''}
+                  onChange={(e) => handleInputChange('AlbumArtist', e.target.value)}
+                  placeholder="專輯藝術家"
+                />
+              </div>
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => convertToPinyin('AlbumArtist')}
+                  disabled={loading}
+                  className="w-8 h-8 p-0"
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <div>
+                <label className="text-gray-500 block mb-1">SortAlbumArtist</label>
+                <Input
+                  value={editedSong.SortAlbumArtist || ''}
+                  onChange={(e) => handleInputChange('SortAlbumArtist', e.target.value)}
+                  placeholder="排序專輯藝術家"
+                />
+              </div>
+            </div>
+            <div className="flex items-end bg-white rounded-lg gap-4">
+              <div>
+                <label className="text-gray-500 block mb-1">Composer</label>
+                <Input
+                  value={editedSong.Composer || ''}
+                  onChange={(e) => handleInputChange('Composer', e.target.value)}
+                  placeholder="作曲家"
+                />
+              </div>
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => convertToPinyin('Composer')}
+                  disabled={loading}
+                  className="w-8 h-8 p-0"
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <div>
+                <label className="text-gray-500 block mb-1">SortComposer</label>
+                <Input
+                  value={editedSong.SortComposer || ''}
+                  onChange={(e) => handleInputChange('SortComposer', e.target.value)}
+                  placeholder="排序作曲家"
                 />
               </div>
             </div>

@@ -23,9 +23,12 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
         'artist': ['artist', 'TPE1', '\xa9ART', 'ARTIST'],
         'album': ['album', 'TALB', '\xa9alb', 'ALBUM'],
         'albumartist': ['albumartist', 'TPE2', 'aART', 'ALBUMARTIST'],
+        'composer': ['composer', 'TCOM', '\xa9wrt', 'COMPOSER'],
         'titlesort': ['titlesort', 'TSOT', 'sonm', 'TITLESORT'],
         'artistsort': ['artistsort', 'TSOP', 'soar', 'ARTISTSORT'],
         'albumsort': ['albumsort', 'TSOA', 'soal', 'ALBUMSORT'],
+        'albumartistsort': ['albumartistsort', 'TSO2', 'soaa', 'ALBUMARTISTSORT', 'TXXX:ALBUMARTISTSORT'],
+        'composersort': ['composersort', 'TSOC', 'soco', 'COMPOSERSORT', 'TXXX:COMPOSERSORT'],
         'genre': ['genre', 'TCON', '\xa9gen', 'GENRE'],
         'language': ['language', 'TLAN', 'LANGUAGE'],
         'favorite': ['favorite', 'FAVORITE', 'Favorite', 'TXXX:FAVORITE', 'TXXX:Favorite'],
@@ -52,8 +55,8 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
                             normalized[standard_key] = [str(t) for t in text_value if t] if text_value else []
                         else:
                             normalized[standard_key] = [str(text_value)] if text_value else []
-                    elif standard_key in ['artist', 'artistsort']:
-                        # Artist 標籤使用分號分隔
+                    elif standard_key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
+                        # Artist 相關標籤使用分號分隔
                         if isinstance(text_value, list):
                             normalized[standard_key] = ';'.join(str(t) for t in text_value) if text_value else ''
                         else:
@@ -68,8 +71,8 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
                     if standard_key == 'genre':
                         # 流派標籤保持為列表格式
                         normalized[standard_key] = [str(v) for v in raw_value if v] if raw_value else []
-                    elif standard_key in ['artist', 'artistsort']:
-                        # Artist 標籤使用分號分隔
+                    elif standard_key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
+                        # Artist 相關標籤使用分號分隔
                         normalized[standard_key] = ';'.join(str(v) for v in raw_value) if raw_value else ''
                     else:
                         # 其他標籤轉換為字符串

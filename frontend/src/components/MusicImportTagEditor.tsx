@@ -75,8 +75,10 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
 
             if (response.ok && data.result) {
                 const sortField = field.toLowerCase().includes('title') ? 'titlesort' :
-                    field.toLowerCase().includes('artist') ? 'artistsort' :
-                        field.toLowerCase().includes('album') ? 'albumsort' : ''
+                    field.toLowerCase().includes('artist') && !field.toLowerCase().includes('album') ? 'artistsort' :
+                        field.toLowerCase().includes('album') && !field.toLowerCase().includes('artist') ? 'albumsort' :
+                            field.toLowerCase().includes('albumartist') ? 'albumartistsort' :
+                                field.toLowerCase().includes('composer') ? 'composersort' : ''
                 if (sortField) {
                     handleInputChange(sortField, data.result)
                 }
@@ -222,6 +224,64 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                             value={tags.albumsort || ''}
                             onChange={(e) => handleInputChange('albumsort', e.target.value)}
                             placeholder="排序專輯"
+                        />
+                    </div>
+                </div>
+
+                {/* 專輯歌手 */}
+                <div className="flex items-end gap-4">
+                    <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">專輯歌手</label>
+                        <Input
+                            value={tags.albumartist || ''}
+                            onChange={(e) => handleInputChange('albumartist', e.target.value)}
+                            placeholder="專輯歌手名稱"
+                        />
+                    </div>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => convertToPinyin('albumartist')}
+                        disabled={loading}
+                        className="w-8 h-8 p-0"
+                    >
+                        <ArrowRight className="h-4 w-4" />
+                    </Button>
+                    <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">排序專輯歌手</label>
+                        <Input
+                            value={tags.albumartistsort || ''}
+                            onChange={(e) => handleInputChange('albumartistsort', e.target.value)}
+                            placeholder="排序專輯歌手"
+                        />
+                    </div>
+                </div>
+
+                {/* 作曲家 */}
+                <div className="flex items-end gap-4">
+                    <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">作曲家</label>
+                        <Input
+                            value={tags.composer || ''}
+                            onChange={(e) => handleInputChange('composer', e.target.value)}
+                            placeholder="作曲家名稱"
+                        />
+                    </div>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => convertToPinyin('composer')}
+                        disabled={loading}
+                        className="w-8 h-8 p-0"
+                    >
+                        <ArrowRight className="h-4 w-4" />
+                    </Button>
+                    <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">排序作曲家</label>
+                        <Input
+                            value={tags.composersort || ''}
+                            onChange={(e) => handleInputChange('composersort', e.target.value)}
+                            placeholder="排序作曲家"
                         />
                     </div>
                 </div>

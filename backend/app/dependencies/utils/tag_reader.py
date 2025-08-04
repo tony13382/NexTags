@@ -45,18 +45,29 @@ def read_audio_tags(file_path):
 def extract_mp4_tags(audio_file):
     """從MP4音訊檔案中提取基本標籤信息"""
     try:
-        artist = audio_file.tags["\xa9ART"][0]
-        album = audio_file.tags["\xa9alb"][0]
-        title = audio_file.tags["\xa9nam"][0]
+        # 使用 get 方法安全地獲取標籤，如果不存在則提供空白字符串
+        artist = audio_file.tags.get("\xa9ART", [""])[0]
+        album = audio_file.tags.get("\xa9alb", [""])[0]
+        title = audio_file.tags.get("\xa9nam", [""])[0]
         
         return {
             "artist": artist,
             "album": album,
             "title": title
         }
-    except KeyError as e:
+    except (KeyError, IndexError) as e:
         print(f"缺少必要的標籤: {str(e)}")
-        return None
+        # 即使標籤缺失，也返回空白字符串而不是 None
+        return {
+            "artist": "",
+            "album": "", 
+            "title": ""
+        }
     except Exception as e:
         print(f"提取標籤時發生錯誤: {str(e)}")
-        return None
+        # 即使發生錯誤，也返回空白字符串而不是 None
+        return {
+            "artist": "",
+            "album": "",
+            "title": ""
+        }

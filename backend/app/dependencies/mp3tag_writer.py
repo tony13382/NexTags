@@ -3,7 +3,7 @@ from mutagen.mp4 import MP4
 from mutagen.flac import FLAC
 from mutagen.mp3 import MP3
 from mutagen.oggvorbis import OggVorbis
-from mutagen.id3 import TIT2, TPE1, TALB, TPE2, TDRC, TRCK, TPOS, TSOT, TSOP, TSOA, COMM, USLT
+from mutagen.id3 import TIT2, TPE1, TALB, TPE2, TCOM, TDRC, TRCK, TPOS, TSOT, TSOP, TSOA, TSO2, TSOC, COMM, USLT
 import yaml
 import os
 
@@ -43,6 +43,7 @@ def write_mp4_tags(audio, tags_dict):
         'artist': '\xa9ART',
         'album': '\xa9alb',
         'albumartist': 'aART',
+        'composer': '\xa9wrt',
         'date': '\xa9day',
         'year': '\xa9day',
         'track': 'trkn',
@@ -53,6 +54,8 @@ def write_mp4_tags(audio, tags_dict):
         'titlesort': 'sonm',
         'artistsort': 'soar',
         'albumsort': 'soal',
+        'albumartistsort': 'soaa',
+        'composersort': 'soco',
         'jfid': 'JFID',
         'jellyfin_add_time': 'JELLYFIN_ADD_TIME'
     }
@@ -77,7 +80,7 @@ def write_mp4_tags(audio, tags_dict):
                         audio[mp4_key] = [str(validated_genres)]
                 else:
                     logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
-            elif key in ['artist', 'artistsort']:
+            elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
                 # 處理多歌手格式（分號分隔）
                 if isinstance(value, str) and ';' in value:
                     artists = [artist.strip() for artist in value.split(';') if artist.strip()]
@@ -104,7 +107,7 @@ def write_flac_tags(audio, tags_dict):
                     audio[key.upper()] = [str(validated_genres)]
             else:
                 logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
-        elif key in ['artist', 'artistsort']:
+        elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
             # 處理多歌手格式（分號分隔）
             if isinstance(value, str) and ';' in value:
                 artists = [artist.strip() for artist in value.split(';') if artist.strip()]
@@ -137,7 +140,7 @@ def write_ogg_tags(audio, tags_dict):
                     audio[key.upper()] = [str(validated_genres)]
             else:
                 logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
-        elif key in ['artist', 'artistsort']:
+        elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
             # 處理多歌手格式（分號分隔）
             if isinstance(value, str) and ';' in value:
                 artists = [artist.strip() for artist in value.split(';') if artist.strip()]
@@ -165,6 +168,7 @@ def write_mp3_tags(audio, tags_dict):
         'artist': TPE1,
         'album': TALB,
         'albumartist': TPE2,
+        'composer': TCOM,
         'date': TDRC,
         'year': TDRC,
         'track': TRCK,
@@ -172,6 +176,8 @@ def write_mp3_tags(audio, tags_dict):
         'titlesort': TSOT,
         'artistsort': TSOP,
         'albumsort': TSOA,
+        'albumartistsort': TSO2,
+        'composersort': TSOC,
         'genre': TCON,
         'jfid': None  # 自定義處理
     }
@@ -194,7 +200,7 @@ def write_mp3_tags(audio, tags_dict):
                     audio.tags['TCON'] = TCON(encoding=3, text=[str(validated_genres)])
             else:
                 logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
-        elif key in ['artist', 'artistsort']:
+        elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
             # 處理多歌手格式（分號分隔）
             tag_class = tag_mapping[key]
             if isinstance(value, str) and ';' in value:

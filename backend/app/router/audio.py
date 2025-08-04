@@ -100,8 +100,8 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
         # 輔助函數：將標籤值轉為字串
         def tag_to_string(value, field_name=None):
             if isinstance(value, list):
-                # Artist 和 SortArtist 使用分號分隔
-                if field_name in ['artist', 'artistsort']:
+                # Artist 相關字段使用分號分隔
+                if field_name in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
                     return ';'.join(str(v) for v in value) if value else ''
                 else:
                     return ' '.join(str(v) for v in value) if value else ''
@@ -142,6 +142,10 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
             "SortArtist": tag_to_string(tags.get('artistsort', ''), 'artistsort'),
             "Album": tag_to_string(tags.get('album', ''), 'album'),
             "SortAlbum": tag_to_string(tags.get('albumsort', ''), 'albumsort'),
+            "AlbumArtist": tag_to_string(tags.get('albumartist', ''), 'albumartist'),
+            "SortAlbumArtist": tag_to_string(tags.get('albumartistsort', ''), 'albumartistsort'),
+            "Composer": tag_to_string(tags.get('composer', ''), 'composer'),
+            "SortComposer": tag_to_string(tags.get('composersort', ''), 'composersort'),
             "MainFolder": main_folder,
             "FilePath": file_path,
             "Genre": genre_list,
@@ -164,6 +168,10 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
             "SortArtist": "",
             "Album": "",
             "SortAlbum": "",
+            "AlbumArtist": "",
+            "SortAlbumArtist": "",
+            "Composer": "",
+            "SortComposer": "",
             "MainFolder": "unknown",
             "FilePath": file_path,
             "Genre": [""],
@@ -399,7 +407,7 @@ async def debug_audio_tags(file_path: str = Query(..., description="音訊檔案
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"讀取標籤時發生錯誤: {str(e)}")
 
-@router.put("/", response_model=AudioUpdateResponse)
+@router.put("/update", response_model=AudioUpdateResponse)
 async def update_audio_tags(request: AudioUpdateRequest):
     """更新音訊檔案的標籤"""
     try:
