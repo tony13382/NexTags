@@ -90,7 +90,7 @@ export default function PlaylistEditDialog({
                     const baseFoldersResponse = await fetch('/api/tags/baseFolders');
                     if (baseFoldersResponse.ok) {
                         const baseFoldersData = await baseFoldersResponse.json();
-                        setBaseFolders(baseFoldersData);
+                        setBaseFolders(baseFoldersData.base_folders || []);
                     }
 
                 } catch (error) {

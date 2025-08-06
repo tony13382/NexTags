@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 from datetime import datetime, timedelta
 
 from app.dependencies.logger import logger
-from config import JELLYFIN_HOST, JELLYFIN_API_KEY, JELLYFIN_USER_NAME, JELLYFIN_USER_PW
+from config import JELLYFIN_HOST, JELLYFIN_USER_NAME, JELLYFIN_USER_PW
 
 
 class JellyfinAuthClient:
@@ -13,7 +13,6 @@ class JellyfinAuthClient:
     
     def __init__(self):
         self.host = JELLYFIN_HOST
-        self.api_key = JELLYFIN_API_KEY
         self.username = JELLYFIN_USER_NAME
         self.password = JELLYFIN_USER_PW
         self.base_url = f"{self.host}"  # 不使用 /emby 前綴
@@ -23,8 +22,8 @@ class JellyfinAuthClient:
         self.user_id: Optional[str] = None
         self.token_expires_at: Optional[datetime] = None
         
-        if not all([self.host, self.api_key, self.username, self.password]):
-            raise ValueError("Jellyfin 認證配置不完整：需要 JELLYFIN_HOST, JELLYFIN_API_KEY, JELLYFIN_USER_NAME, JELLYFIN_USER_PW")
+        if not all([self.host, self.username, self.password]):
+            raise ValueError("Jellyfin 認證配置不完整：需要 JELLYFIN_HOST, JELLYFIN_USER_NAME, JELLYFIN_USER_PW")
     
     async def authenticate(self) -> bool:
         """取得 Access Token
@@ -39,10 +38,10 @@ class JellyfinAuthClient:
         # 建構認證 URL
         auth_url = f"{self.base_url}/Users/AuthenticateByName"
         
-        # Authorization header
+        # Authorization header (不使用 ApiKey，使用基本的客戶端識別)
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'MediaBrowser Client="PlaylistSyncer", Device="shell", DeviceId="abcdef", Version="0.0.1", ApiKey="{self.api_key}"'
+            'Authorization': 'MediaBrowser Client="PlaylistSyncer", Device="shell", DeviceId="abcdef", Version="0.0.1"'
         }
         
         # 認證資料
@@ -55,6 +54,7 @@ class JellyfinAuthClient:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 logger.info(f"發送認證請求到: {auth_url}")
                 logger.info(f"認證標頭: {headers['Authorization']}")
+                logger.info(f"認證用戶: {self.username}")
                 
                 response = await client.post(auth_url, headers=headers, json=auth_data)
                 

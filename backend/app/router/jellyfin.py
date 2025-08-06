@@ -208,7 +208,7 @@ async def jellyfin_health_check() -> Dict[str, Any]:
             return {
                 "status": "error",
                 "message": "Jellyfin Songs Client 未正確初始化",
-                "details": "請檢查 .env 檔案中的 JELLYFIN_HOST, JELLYFIN_API_KEY, JELLYFIN_USER_ID 設定"
+                "details": "請檢查 .env 檔案中的 JELLYFIN_HOST, JELLYFIN_USER_NAME, JELLYFIN_USER_PW 設定"
             }
         
         # 嘗試執行一個簡單的搜尋來測試連接
