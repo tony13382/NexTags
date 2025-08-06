@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Plus, ListMusic, RefreshCcw, Edit, Trash2 } from 'lucide-react';
 import PlaylistEditDialog from '@/components/PlaylistEditDialog';
+import TaskStatusDialog from '@/components/TaskStatusDialog';
 
 interface SmartPlaylist {
   name: string;
@@ -38,6 +39,8 @@ export default function PlaylistsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
   const [deletingPlaylist, setDeletingPlaylist] = useState<SmartPlaylist | null>(null);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPlaylists();
@@ -157,16 +160,18 @@ export default function PlaylistsPage() {
 
       const data = await response.json();
 
-      if (data.success) {
-        setSuccessMessage(data.message || '同步成功');
-        // 清除成功訊息 after 3 seconds
-        setTimeout(() => setSuccessMessage(null), 3000);
+      if (data.success && data.task_id) {
+        // 異步任務已創建，開啟任務狀態對話框
+        setCurrentTaskId(data.task_id);
+        setTaskDialogOpen(true);
+        setSuccessMessage(`${data.message}，任務 ID: ${data.task_id}`);
+        setTimeout(() => setSuccessMessage(null), 5000);
       } else {
-        setError(data.message || '同步到 Jellyfin 失敗');
+        setError(data.message || '創建同步任務失敗');
       }
     } catch (err) {
       setError('網路錯誤，請稍後再試');
-      console.error('Error syncing to Jellyfin:', err);
+      console.error('Error creating sync task:', err);
     } finally {
       setSyncingIndex(null);
     }
@@ -438,6 +443,22 @@ export default function PlaylistsPage() {
           </div>
         </div>
       )}
+
+      {/* 任務狀態對話框 */}
+      <TaskStatusDialog
+        taskId={currentTaskId}
+        isOpen={taskDialogOpen}
+        onClose={() => {
+          setTaskDialogOpen(false);
+          setCurrentTaskId(null);
+        }}
+        onComplete={(result) => {
+          // 任務完成時刷新播放清單
+          fetchPlaylists();
+          setSuccessMessage(result?.message || '同步完成');
+          setTimeout(() => setSuccessMessage(null), 5000);
+        }}
+      />
     </div>
   );
 }

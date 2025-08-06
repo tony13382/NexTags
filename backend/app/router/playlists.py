@@ -694,11 +694,13 @@ async def find_jellyfin_songs_by_file_paths(file_paths: List[str]) -> List[Dict[
 async def sync_playlist_to_jellyfin(
     index: int = FastAPIPath(..., ge=0, description="播放清單索引")
 ):
-    """將智慧播放清單同步到 Jellyfin"""
+    """將智慧播放清單同步到 Jellyfin（異步任務）"""
     try:
-        logger.info(f"開始同步播放清單 {index} 到 Jellyfin")
+        from app.services.task_manager import task_manager
         
-        # 載入播放清單
+        logger.info(f"收到同步播放清單 {index} 到 Jellyfin 的請求")
+        
+        # 載入播放清單進行基本驗證
         playlists_data = load_playlists()
         
         # 檢查索引是否有效
@@ -717,102 +719,30 @@ async def sync_playlist_to_jellyfin(
                 detail="此播放清單沒有設定 Jellyfin Playlist ID"
             )
         
-        # 取得本地播放清單的歌曲
-        audio_files = find_audio_files(playlist['base_folder'])
-        filtered_songs = filter_songs_by_playlist(playlist, audio_files)
-        
-        logger.info(f"篩選後找到 {len(filtered_songs)} 首歌曲")
-        
-        if not filtered_songs:
-            return {
-                "success": True,
-                "message": f"播放清單 '{playlist['name']}' 沒有符合條件的歌曲",
-                "jellyfin_playlist_id": jellyfin_playlist_id,
-                "songs_found": 0,
-                "songs_added": 0
+        # 創建異步任務
+        task_id = task_manager.create_task(
+            task_type="playlist_sync",
+            task_data={
+                "playlist_index": index,
+                "playlist_name": playlist.get('name', 'Unknown'),
+                "jellyfin_playlist_id": jellyfin_playlist_id
             }
+        )
         
-        # 使用本地 jellyfin_add_time 標籤排序（新→舊）
-        logger.info(f"使用本地 jellyfin_add_time 標籤排序 {len(filtered_songs)} 首歌曲")
-        sorted_songs = sort_songs_by_jellyfin_add_time(filtered_songs)
+        logger.info(f"成功創建同步任務: {task_id}")
         
-        # 從排序後的歌曲中提取 Jellyfin ID
-        jellyfin_song_ids = []
-        for file_path in sorted_songs:
-            try:
-                tags = tags_cache.get_cached_tags_with_fallback(file_path)
-                jellyfin_id = tags.get('jfid', '').strip()
-                if jellyfin_id:
-                    jellyfin_song_ids.append(jellyfin_id)
-                else:
-                    logger.warning(f"檔案沒有 Jellyfin ID: {file_path}")
-            except Exception as e:
-                logger.error(f"讀取檔案標籤失敗: {file_path} - {str(e)}")
-                continue
-        
-        if not jellyfin_song_ids:
-            return {
-                "success": False,
-                "message": f"播放清單 '{playlist['name']}' 中沒有找到有效的 Jellyfin ID",
-                "jellyfin_playlist_id": jellyfin_playlist_id,
-                "songs_found": len(filtered_songs),
-                "songs_matched": 0
-            }
-        
-        # 日誌排序結果
-        logger.info(f"本地標籤排序結果 (前3首):")
-        for i, file_path in enumerate(sorted_songs[:3]):
-            try:
-                tags = tags_cache.get_cached_tags_with_fallback(file_path)
-                jellyfin_add_time = tags.get('jellyfin_add_time', 'Unknown')
-                file_name = os.path.basename(file_path)
-                logger.info(f"  {i+1}. {file_name} (jellyfin_add_time: {jellyfin_add_time})")
-            except Exception:
-                file_name = os.path.basename(file_path)
-                logger.info(f"  {i+1}. {file_name} (無法讀取標籤)")
-        
-        # 檢查 Jellyfin 播放清單是否存在
-        existing_playlist = await jellyfin_playlists.get_playlist_by_id(jellyfin_playlist_id)
-        if not existing_playlist:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Jellyfin 中找不到 ID 為 {jellyfin_playlist_id} 的播放清單"
-            )
-        
-        # 先清空播放清單，再添加新歌曲
-        logger.info(f"清空播放清單 {jellyfin_playlist_id} 中的所有項目")
-        clear_success = await jellyfin_playlists.clear_playlist(jellyfin_playlist_id)
-        
-        if not clear_success:
-            logger.warning(f"清空播放清單失敗，但繼續執行添加操作: {jellyfin_playlist_id}")
-        
-        # 新增歌曲到 Jellyfin 播放清單（保持 DateCreated 排序順序）
-        logger.info(f"即將添加到 Jellyfin 的歌曲 ID 順序 (前3個):")
-        for i, song_id in enumerate(jellyfin_song_ids[:3]):
-            logger.info(f"  {i+1}. {song_id}")
-        
-        success = await jellyfin_playlists.add_songs_to_playlist(jellyfin_playlist_id, jellyfin_song_ids)
-        
-        if success:
-            logger.info(f"成功同步播放清單 '{playlist['name']}' 到 Jellyfin，共 {len(jellyfin_song_ids)} 首歌曲，使用本地 jellyfin_add_time 標籤排序")
-            return {
-                "success": True,
-                "message": f"成功同步播放清單 '{playlist['name']}' 到 Jellyfin (按本地 jellyfin_add_time 標籤排序)",
-                "jellyfin_playlist_id": jellyfin_playlist_id,
-                "songs_found": len(filtered_songs),
-                "songs_matched": len(jellyfin_song_ids),
-                "songs_added": len(jellyfin_song_ids),
-                "sort_method": "local_jellyfin_add_time"
-            }
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail=f"無法將歌曲新增到 Jellyfin 播放清單 {jellyfin_playlist_id}"
-            )
+        return {
+            "success": True,
+            "message": f"已開始同步播放清單 '{playlist['name']}' 到 Jellyfin",
+            "task_id": task_id,
+            "playlist_name": playlist['name'],
+            "jellyfin_playlist_id": jellyfin_playlist_id,
+            "status_url": f"/api/tasks/{task_id}"
+        }
         
     except HTTPException:
         raise
     except Exception as e:
-        error_msg = f"同步播放清單到 Jellyfin 失敗: {str(e)}"
+        error_msg = f"創建同步任務失敗: {str(e)}"
         logger.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)

@@ -8,6 +8,7 @@ from app.router.jellyfin import router as jellyfin_router
 from app.router.playlists import router as playlists_router
 from app.router.cache import router as cache_router
 from app.router.music_import import router as music_import_router
+from app.router.tasks import router as tasks_router
 from app.dependencies.logger import logger
 
 app = FastAPI(
@@ -32,16 +33,29 @@ app.include_router(jellyfin_router)
 app.include_router(playlists_router)
 app.include_router(cache_router)
 app.include_router(music_import_router)
+app.include_router(tasks_router)
 
 @app.on_event("startup")
 async def startup_event():
     logger.info("=== Personal Music Manager API 啟動 ===")
     logger.info("API 版本: 0.1.0")
+    
+    # 啟動背景任務工作器
+    from app.services.task_manager import task_manager
+    import asyncio
+    asyncio.create_task(task_manager.start_worker())
+    logger.info("背景任務工作器已啟動")
+    
     logger.info("伺服器已準備就緒，等待請求...")
 
 @app.on_event("shutdown")  
 async def shutdown_event():
     logger.info("Personal Music Manager API 正在關閉...")
+    
+    # 停止背景任務工作器
+    from app.services.task_manager import task_manager
+    task_manager.stop_worker()
+    logger.info("背景任務工作器已停止")
 
 @app.get("/")
 async def root():
