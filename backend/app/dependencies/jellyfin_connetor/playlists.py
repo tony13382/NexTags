@@ -350,7 +350,7 @@ class JellyfinPlaylistsClient:
                 
                 # 在批次間加入小延遲以確保順序穩定（除了最後一批）
                 if batch_num < total_batches - 1:
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(5)
                     logger.info(f"批次間延遲完成，準備處理下一批")
             else:
                 logger.error(f"第 {batch_num + 1} 批次添加失敗")
