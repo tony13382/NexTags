@@ -1,0 +1,552 @@
+{
+  "b4b666c2-a6ce-4bb2-8fe9-ed0978b9a70c": {
+    "task_id": "b4b666c2-a6ce-4bb2-8fe9-ed0978b9a70c",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-06T07:29:57.267625",
+    "updated_at": "2025-08-06T07:34:23.185577",
+    "data": {
+      "playlist_index": 5,
+      "playlist_name": "L01・中文",
+      "jellyfin_playlist_id": "2a67d87eff90ccd41818261ad84920c0"
+    },
+    "result": {
+      "message": "成功同步播放清單 'L01・中文' 到 Jellyfin",
+      "jellyfin_playlist_id": "2a67d87eff90ccd41818261ad84920c0",
+      "songs_found": 940,
+      "songs_matched": 940,
+      "songs_added": 940,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "b787abee-2317-47e0-a2ea-920e420e7255": {
+    "task_id": "b787abee-2317-47e0-a2ea-920e420e7255",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-06T07:30:07.919917",
+    "updated_at": "2025-08-06T07:30:53.176246",
+    "data": {
+      "playlist_index": 11,
+      "playlist_name": "T01・悲傷",
+      "jellyfin_playlist_id": "ed3d04d144fbceb4c899aa8e907a5d3f"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T01・悲傷' 到 Jellyfin",
+      "jellyfin_playlist_id": "ed3d04d144fbceb4c899aa8e907a5d3f",
+      "songs_found": 62,
+      "songs_matched": 62,
+      "songs_added": 62,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "30cb274c-161e-4210-bfae-74cfce358c26": {
+    "task_id": "30cb274c-161e-4210-bfae-74cfce358c26",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-06T07:30:11.888977",
+    "updated_at": "2025-08-06T07:33:37.589276",
+    "data": {
+      "playlist_index": 12,
+      "playlist_name": "T02・舒緩",
+      "jellyfin_playlist_id": "6bddb51b3ae195286790962c89677f69"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T02・舒緩' 到 Jellyfin",
+      "jellyfin_playlist_id": "6bddb51b3ae195286790962c89677f69",
+      "songs_found": 766,
+      "songs_matched": 766,
+      "songs_added": 766,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "b2a2233a-1a89-4287-8be0-9ab84df28606": {
+    "task_id": "b2a2233a-1a89-4287-8be0-9ab84df28606",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-06T07:30:30.021443",
+    "updated_at": "2025-08-06T07:32:05.296093",
+    "data": {
+      "playlist_index": 17,
+      "playlist_name": "T07・台灣華語",
+      "jellyfin_playlist_id": "31b8db6ecdb4f61b775f11bae883ba2f"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T07・台灣華語' 到 Jellyfin",
+      "jellyfin_playlist_id": "31b8db6ecdb4f61b775f11bae883ba2f",
+      "songs_found": 321,
+      "songs_matched": 321,
+      "songs_added": 321,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "14531e76-cd8a-4370-a21a-efaf9e530965": {
+    "task_id": "14531e76-cd8a-4370-a21a-efaf9e530965",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-06T07:30:35.728176",
+    "updated_at": "2025-08-06T07:31:57.188450",
+    "data": {
+      "playlist_index": 18,
+      "playlist_name": "T08・2000年代流行曲",
+      "jellyfin_playlist_id": "72bbd05404a7cc9cce69dc876d5bb646"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T08・2000年代流行曲' 到 Jellyfin",
+      "jellyfin_playlist_id": "72bbd05404a7cc9cce69dc876d5bb646",
+      "songs_found": 287,
+      "songs_matched": 287,
+      "songs_added": 287,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "6c8ea1fb-15e6-4af6-8f11-e81a754f1529": {
+    "task_id": "6c8ea1fb-15e6-4af6-8f11-e81a754f1529",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-06T07:30:41.203375",
+    "updated_at": "2025-08-06T07:32:04.722820",
+    "data": {
+      "playlist_index": 22,
+      "playlist_name": "T12・開車精選",
+      "jellyfin_playlist_id": "54ad49658a7cebc80ba367c99dd6bbb7"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T12・開車精選' 到 Jellyfin",
+      "jellyfin_playlist_id": "54ad49658a7cebc80ba367c99dd6bbb7",
+      "songs_found": 319,
+      "songs_matched": 319,
+      "songs_added": 319,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "4de60c2a-dce2-470d-9b30-9a8c2c026cf3": {
+    "task_id": "4de60c2a-dce2-470d-9b30-9a8c2c026cf3",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-06T07:30:46.451776",
+    "updated_at": "2025-08-06T07:31:51.578913",
+    "data": {
+      "playlist_index": 24,
+      "playlist_name": "T14・2000 年代華語",
+      "jellyfin_playlist_id": "da55f5f87a01b15eb98046beab284170"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T14・2000 年代華語' 到 Jellyfin",
+      "jellyfin_playlist_id": "da55f5f87a01b15eb98046beab284170",
+      "songs_found": 248,
+      "songs_matched": 248,
+      "songs_added": 248,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "a882b7b4-6d67-489b-8cd1-19c7a346041a": {
+    "task_id": "a882b7b4-6d67-489b-8cd1-19c7a346041a",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-06T07:36:58.978102",
+    "updated_at": "2025-08-06T07:41:32.245713",
+    "data": {
+      "playlist_index": 1,
+      "playlist_name": "A02・所有人聲",
+      "jellyfin_playlist_id": "80815dda89090b6cc30e3094e541fafe"
+    },
+    "result": {
+      "message": "成功同步播放清單 'A02・所有人聲' 到 Jellyfin",
+      "jellyfin_playlist_id": "80815dda89090b6cc30e3094e541fafe",
+      "songs_found": 1059,
+      "songs_matched": 1059,
+      "songs_added": 1059,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "9f4d710b-475f-4ca6-a46e-f30613450717": {
+    "task_id": "9f4d710b-475f-4ca6-a46e-f30613450717",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-08T13:36:08.715110",
+    "updated_at": "2025-08-08T13:40:53.352054",
+    "data": {
+      "playlist_index": 1,
+      "playlist_name": "A02・所有人聲",
+      "jellyfin_playlist_id": "80815dda89090b6cc30e3094e541fafe"
+    },
+    "result": {
+      "message": "成功同步播放清單 'A02・所有人聲' 到 Jellyfin",
+      "jellyfin_playlist_id": "80815dda89090b6cc30e3094e541fafe",
+      "songs_found": 1058,
+      "songs_matched": 1058,
+      "songs_added": 1058,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "7155bc2b-701e-4f84-b3f8-296ca4f6ae96": {
+    "task_id": "7155bc2b-701e-4f84-b3f8-296ca4f6ae96",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-08T13:36:20.658744",
+    "updated_at": "2025-08-08T13:36:49.300708",
+    "data": {
+      "playlist_index": 4,
+      "playlist_name": "B02・最愛人聲",
+      "jellyfin_playlist_id": "ae7c3625c006d2b41f2c14a7f20f55dd"
+    },
+    "result": {
+      "message": "成功同步播放清單 'B02・最愛人聲' 到 Jellyfin",
+      "jellyfin_playlist_id": "ae7c3625c006d2b41f2c14a7f20f55dd",
+      "songs_found": 45,
+      "songs_matched": 45,
+      "songs_added": 45,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "25253bfd-e0b2-4eec-8746-6d2af0d48b99": {
+    "task_id": "25253bfd-e0b2-4eec-8746-6d2af0d48b99",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-08T13:36:27.391952",
+    "updated_at": "2025-08-08T13:40:33.179187",
+    "data": {
+      "playlist_index": 5,
+      "playlist_name": "L01・中文",
+      "jellyfin_playlist_id": "2a67d87eff90ccd41818261ad84920c0"
+    },
+    "result": {
+      "message": "成功同步播放清單 'L01・中文' 到 Jellyfin",
+      "jellyfin_playlist_id": "2a67d87eff90ccd41818261ad84920c0",
+      "songs_found": 940,
+      "songs_matched": 940,
+      "songs_added": 940,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "7f9f8da2-dd52-4c4a-9234-968598f7795d": {
+    "task_id": "7f9f8da2-dd52-4c4a-9234-968598f7795d",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-08T13:36:37.806207",
+    "updated_at": "2025-08-08T13:37:30.027182",
+    "data": {
+      "playlist_index": 14,
+      "playlist_name": "T04・舞曲",
+      "jellyfin_playlist_id": "9b3c71e705d7b42fdfc67741942109ff"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T04・舞曲' 到 Jellyfin",
+      "jellyfin_playlist_id": "9b3c71e705d7b42fdfc67741942109ff",
+      "songs_found": 123,
+      "songs_matched": 123,
+      "songs_added": 123,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "ef81f77a-b0c2-47a9-8c01-e9c65f67891c": {
+    "task_id": "ef81f77a-b0c2-47a9-8c01-e9c65f67891c",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-08T13:36:43.121560",
+    "updated_at": "2025-08-08T13:37:42.369571",
+    "data": {
+      "playlist_index": 15,
+      "playlist_name": "T05・愉悅甜蜜",
+      "jellyfin_playlist_id": "07577b17eadbc9b14c7e3ebacd022b48"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T05・愉悅甜蜜' 到 Jellyfin",
+      "jellyfin_playlist_id": "07577b17eadbc9b14c7e3ebacd022b48",
+      "songs_found": 209,
+      "songs_matched": 209,
+      "songs_added": 209,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "7aa2d994-aeb9-4f84-97ae-5c65bf960b5d": {
+    "task_id": "7aa2d994-aeb9-4f84-97ae-5c65bf960b5d",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-08T13:36:51.118042",
+    "updated_at": "2025-08-08T13:38:14.774429",
+    "data": {
+      "playlist_index": 17,
+      "playlist_name": "T07・台灣華語",
+      "jellyfin_playlist_id": "31b8db6ecdb4f61b775f11bae883ba2f"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T07・台灣華語' 到 Jellyfin",
+      "jellyfin_playlist_id": "31b8db6ecdb4f61b775f11bae883ba2f",
+      "songs_found": 321,
+      "songs_matched": 321,
+      "songs_added": 321,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "5b1cf881-9563-4ad5-932d-d9b133ac8fbc": {
+    "task_id": "5b1cf881-9563-4ad5-932d-d9b133ac8fbc",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-08T13:37:05.016785",
+    "updated_at": "2025-08-08T13:38:22.853918",
+    "data": {
+      "playlist_index": 22,
+      "playlist_name": "T12・開車精選",
+      "jellyfin_playlist_id": "54ad49658a7cebc80ba367c99dd6bbb7"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T12・開車精選' 到 Jellyfin",
+      "jellyfin_playlist_id": "54ad49658a7cebc80ba367c99dd6bbb7",
+      "songs_found": 319,
+      "songs_matched": 319,
+      "songs_added": 319,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "248f60e8-5204-4e7b-9b72-263f51d83d7a": {
+    "task_id": "248f60e8-5204-4e7b-9b72-263f51d83d7a",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-09T15:27:47.261432",
+    "updated_at": "2025-08-09T15:29:27.227224",
+    "data": {
+      "playlist_index": 15,
+      "playlist_name": "T05・愉悅甜蜜",
+      "jellyfin_playlist_id": "07577b17eadbc9b14c7e3ebacd022b48"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T05・愉悅甜蜜' 到 Jellyfin",
+      "jellyfin_playlist_id": "913ef710ebac8b522fb9875453eb9849",
+      "songs_found": 213,
+      "songs_matched": 213,
+      "songs_added": 213,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "0c918b05-0056-47cd-9717-8807f837d044": {
+    "task_id": "0c918b05-0056-47cd-9717-8807f837d044",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-09T15:27:53.553776",
+    "updated_at": "2025-08-09T15:29:04.266161",
+    "data": {
+      "playlist_index": 14,
+      "playlist_name": "T04・舞曲",
+      "jellyfin_playlist_id": "9b3c71e705d7b42fdfc67741942109ff"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T04・舞曲' 到 Jellyfin",
+      "jellyfin_playlist_id": "cb65a726b3736189f71a68998d9da1e9",
+      "songs_found": 125,
+      "songs_matched": 125,
+      "songs_added": 125,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "1d6e6221-a412-47f3-826f-877cc07064a0": {
+    "task_id": "1d6e6221-a412-47f3-826f-877cc07064a0",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-09T15:27:58.512591",
+    "updated_at": "2025-08-09T15:31:20.865873",
+    "data": {
+      "playlist_index": 12,
+      "playlist_name": "T02・舒緩",
+      "jellyfin_playlist_id": "6bddb51b3ae195286790962c89677f69"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T02・舒緩' 到 Jellyfin",
+      "jellyfin_playlist_id": "c4d8e401ce51bb2583f3d8801dafadc3",
+      "songs_found": 768,
+      "songs_matched": 768,
+      "songs_added": 768,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "39efd3ca-a300-4dbb-b9e6-1469ea775016": {
+    "task_id": "39efd3ca-a300-4dbb-b9e6-1469ea775016",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-09T15:27:58.530344",
+    "updated_at": "2025-08-09T15:28:55.361072",
+    "data": {
+      "playlist_index": 7,
+      "playlist_name": "L03・韓語",
+      "jellyfin_playlist_id": "eece5c50a0bcf1f70d6fe15e8996f0c5"
+    },
+    "result": {
+      "message": "成功同步播放清單 'L03・韓語' 到 Jellyfin",
+      "jellyfin_playlist_id": "eece5c50a0bcf1f70d6fe15e8996f0c5",
+      "songs_found": 75,
+      "songs_matched": 75,
+      "songs_added": 75,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "0ba01e0b-7c24-4e52-b748-144ce4e1a04b": {
+    "task_id": "0ba01e0b-7c24-4e52-b748-144ce4e1a04b",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-09T15:28:08.374185",
+    "updated_at": "2025-08-09T15:28:46.576917",
+    "data": {
+      "playlist_index": 6,
+      "playlist_name": "L02・英語",
+      "jellyfin_playlist_id": "5c186f8e26685acc46f3041a499fa53e"
+    },
+    "result": {
+      "message": "成功同步播放清單 'L02・英語' 到 Jellyfin",
+      "jellyfin_playlist_id": "5c186f8e26685acc46f3041a499fa53e",
+      "songs_found": 33,
+      "songs_matched": 33,
+      "songs_added": 33,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "ebe1bf70-dc1d-4337-bc46-ce7833ff54d2": {
+    "task_id": "ebe1bf70-dc1d-4337-bc46-ce7833ff54d2",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-09T15:28:08.396947",
+    "updated_at": "2025-08-09T15:33:21.300859",
+    "data": {
+      "playlist_index": 1,
+      "playlist_name": "A02・所有人聲",
+      "jellyfin_playlist_id": "80815dda89090b6cc30e3094e541fafe"
+    },
+    "result": {
+      "message": "成功同步播放清單 'A02・所有人聲' 到 Jellyfin",
+      "jellyfin_playlist_id": "80815dda89090b6cc30e3094e541fafe",
+      "songs_found": 1062,
+      "songs_matched": 1062,
+      "songs_added": 1062,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "54ce1b14-6aa1-4274-a595-56ba65920e98": {
+    "task_id": "54ce1b14-6aa1-4274-a595-56ba65920e98",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-09T15:38:38.533911",
+    "updated_at": "2025-08-09T15:41:41.426514",
+    "data": {
+      "playlist_index": 12,
+      "playlist_name": "T02・舒緩",
+      "jellyfin_playlist_id": "6bddb51b3ae195286790962c89677f69"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T02・舒緩' 到 Jellyfin",
+      "jellyfin_playlist_id": "6bddb51b3ae195286790962c89677f69",
+      "songs_found": 768,
+      "songs_matched": 768,
+      "songs_added": 768,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "bf931ec2-a8ff-42d6-9869-9ca4964615fe": {
+    "task_id": "bf931ec2-a8ff-42d6-9869-9ca4964615fe",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-09T15:41:57.718003",
+    "updated_at": "2025-08-09T15:42:05.303133",
+    "data": {
+      "playlist_index": 13,
+      "playlist_name": "T03・空靈",
+      "jellyfin_playlist_id": "d01ad1a2d7928f7006724ff8037caba7"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T03・空靈' 到 Jellyfin",
+      "jellyfin_playlist_id": "d01ad1a2d7928f7006724ff8037caba7",
+      "songs_found": 20,
+      "songs_matched": 20,
+      "songs_added": 20,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "9eacd31f-3657-4019-9f09-c622de3daa6b": {
+    "task_id": "9eacd31f-3657-4019-9f09-c622de3daa6b",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-09T15:42:31.558380",
+    "updated_at": "2025-08-09T15:43:06.965400",
+    "data": {
+      "playlist_index": 14,
+      "playlist_name": "T04・舞曲",
+      "jellyfin_playlist_id": "9b3c71e705d7b42fdfc67741942109ff"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T04・舞曲' 到 Jellyfin",
+      "jellyfin_playlist_id": "9b3c71e705d7b42fdfc67741942109ff",
+      "songs_found": 125,
+      "songs_matched": 125,
+      "songs_added": 125,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  },
+  "32339207-90de-4d21-9ed1-409de9e61378": {
+    "task_id": "32339207-90de-4d21-9ed1-409de9e61378",
+    "task_type": "playlist_sync",
+    "status": "completed",
+    "created_at": "2025-08-09T15:43:20.757414",
+    "updated_at": "2025-08-09T15:44:17.701926",
+    "data": {
+      "playlist_index": 15,
+      "playlist_name": "T05・愉悅甜蜜",
+      "jellyfin_playlist_id": "07577b17eadbc9b14c7e3ebacd022b48"
+    },
+    "result": {
+      "message": "成功同步播放清單 'T05・愉悅甜蜜' 到 Jellyfin",
+      "jellyfin_playlist_id": "07577b17eadbc9b14c7e3ebacd022b48",
+      "songs_found": 213,
+      "songs_matched": 213,
+      "songs_added": 213,
+      "sort_method": "local_jellyfin_add_time"
+    },
+    "error": null,
+    "progress": 100
+  }
+}
