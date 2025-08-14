@@ -20,7 +20,7 @@ from app.schemas.music_import import (
 from app.dependencies.mp3tag_reader import read_audio_tags
 from app.dependencies.mp3tag_writer import write_tags
 from app.dependencies.utils.audio_converter import convert_to_flac
-from app.dependencies.utils.cover_art import save_cover_art
+from app.dependencies.utils.cover_art import save_cover_art, extract_cover_from_audio
 from app.dependencies.logger import logger
 
 router = APIRouter(prefix="/music-import", tags=["music-import"])
@@ -559,49 +559,8 @@ async def process_album_folder(request: ProcessAlbumRequest):
         cover_path = ""
         
         try:
-            from mutagen import File as MutagenFile
-            from mutagen.mp4 import MP4, MP4Cover
-            from mutagen.flac import FLAC, Picture
-            from mutagen.mp3 import MP3
-            from mutagen.id3 import APIC
-            
-            audio_file = MutagenFile(temp_path)
-            
-            if isinstance(audio_file, MP4):
-                # MP4/M4A 檔案
-                if "covr" in audio_file.tags:
-                    artwork = audio_file.tags["covr"][0]
-                    extension = ".jpg" if artwork.imageformat == MP4Cover.FORMAT_JPEG else ".png"
-                    cover_path = os.path.join(album_folder_path, "cover" + extension)
-                    
-                    with open(cover_path, "wb") as f:
-                        f.write(artwork)
-                    cover_extracted = True
-                    
-            elif isinstance(audio_file, FLAC):
-                # FLAC 檔案
-                if audio_file.pictures:
-                    picture = audio_file.pictures[0]
-                    extension = ".jpg" if picture.mime == "image/jpeg" else ".png"
-                    cover_path = os.path.join(album_folder_path, "cover" + extension)
-                    
-                    with open(cover_path, "wb") as f:
-                        f.write(picture.data)
-                    cover_extracted = True
-                    
-            elif isinstance(audio_file, MP3):
-                # MP3 檔案
-                if audio_file.tags:
-                    for tag in audio_file.tags.values():
-                        if isinstance(tag, APIC):
-                            extension = ".jpg" if tag.mime == "image/jpeg" else ".png"
-                            cover_path = os.path.join(album_folder_path, "cover" + extension)
-                            
-                            with open(cover_path, "wb") as f:
-                                f.write(tag.data)
-                            cover_extracted = True
-                            break
-                            
+            # 使用新的封面提取功能
+            cover_extracted, cover_path = extract_cover_from_audio(temp_path, album_folder_path)
         except Exception as cover_error:
             logger.warning(f"封面提取失敗: {str(cover_error)}")
             # 封面提取失敗不會影響整個流程
