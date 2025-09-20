@@ -217,9 +217,6 @@ export default function Home() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="px-4 py-3 text-center font-medium text-gray-500 tracking-wider">
-                      封面
-                    </th>
                     <th className="px-4 py-3 text-left font-medium text-gray-500 tracking-wider max-w-[200px] min-w-[100px]">
                       標題
                     </th>
@@ -249,31 +246,6 @@ export default function Home() {
                 <tbody className="divide-y divide-gray-200">
                   {songs.map((song, index) => (
                     <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <div className="h-12 w-12 mx-auto bg-gray-200 rounded flex items-center justify-center overflow-hidden">
-                          {song.Cover ? (
-                            <img
-                              src={`/api/images/cover?path=${encodeURIComponent(song.Cover)}`}
-                              alt={`${song.Title} 封面`}
-                              className="h-full w-full object-cover rounded"
-                              onError={(e) => {
-                                // 當圖片載入失敗時，顯示預設音樂圖標
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                const parent = target.parentElement;
-                                if (parent && !parent.querySelector('.fallback-icon')) {
-                                  const musicIcon = document.createElement('div');
-                                  musicIcon.className = 'fallback-icon flex items-center justify-center h-full w-full';
-                                  musicIcon.innerHTML = '<svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>';
-                                  parent.appendChild(musicIcon);
-                                }
-                              }}
-                            />
-                          ) : (
-                            <Music className="h-4 w-4 text-gray-400" />
-                          )}
-                        </div>
-                      </td>
                       <td className="px-4 py-3 max-w-[200px] min-w-[100px]">
                         <div className="font-medium text-gray-900 truncate">
                           {song.Title || '未知標題'}

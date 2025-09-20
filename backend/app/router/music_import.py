@@ -426,8 +426,8 @@ async def check_artist_folder(request: CheckArtistRequest):
         needs_artist_image = False
         
         if artist_exists:
-            # 檢查是否有歌手圖片 (folder.jpg, folder.png 等)
-            artist_image_files = ['folder.jpg', 'folder.jpeg', 'folder.png']
+            # 檢查是否有歌手圖片 (artist.jpg, artist.png 等)
+            artist_image_files = ['artist.jpg', 'artist.jpeg', 'artist.png']
             has_artist_image = any(
                 os.path.exists(os.path.join(artist_folder_path, img_file))
                 for img_file in artist_image_files
@@ -501,8 +501,8 @@ async def upload_artist_image(
         artist_folder_path = os.path.join(music_base_path, base_folder, "Music", artist_name)
         os.makedirs(artist_folder_path, exist_ok=True)
         
-        # 儲存圖片為 folder.jpg
-        artist_image_path = os.path.join(artist_folder_path, "folder.jpg")
+        # 儲存圖片為 artist.jpg
+        artist_image_path = os.path.join(artist_folder_path, "artist.jpg")
         
         with open(artist_image_path, "wb") as buffer:
             content = await image.read()

@@ -614,7 +614,7 @@ export default function NewMusicPage() {
                     <DialogHeader className="grid">
                         <DialogTitle>上傳歌手圖片</DialogTitle>
                         <DialogDescription>
-                            歌手 "{artistName}" 的資料夾需要封面圖片，請上傳歌手圖片 (JPG/PNG 格式)
+                            歌手 "{artistName}" 的資料夾需要封面圖片，請上傳歌手圖片 (JPG/PNG 格式)，檔案將保存為 artist.jpg
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">

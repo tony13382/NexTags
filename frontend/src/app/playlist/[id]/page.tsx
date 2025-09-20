@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, CloudUpload, Download } from 'lucide-react';
+import { ArrowLeft, Download } from 'lucide-react';
 
 interface SongWithDate {
     file_path: string | null;
@@ -40,7 +40,6 @@ export default function PlaylistDetailPage() {
     const [playlistData, setPlaylistData] = useState<PlaylistSongsResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [syncLoading, setSyncLoading] = useState(false);
     const [downloadLoading, setDownloadLoading] = useState(false);
 
     useEffect(() => {
@@ -68,27 +67,6 @@ export default function PlaylistDetailPage() {
         }
     };
 
-    const handleSyncToJellyfin = async () => {
-        try {
-            setSyncLoading(true);
-            const response = await fetch(`/api/playlists/${playlistId}/sync-to-jellyfin`, {
-                method: 'POST',
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                alert('成功同步到 Jellyfin！');
-            } else {
-                alert(`同步失敗：${data.message}`);
-            }
-        } catch (error) {
-            console.error('同步錯誤:', error);
-            alert('同步過程中發生錯誤');
-        } finally {
-            setSyncLoading(false);
-        }
-    };
 
     const handleDownloadM3U = async () => {
         try {
@@ -216,15 +194,6 @@ export default function PlaylistDetailPage() {
                     >
                         <Download className="w-4 h-4" />
                         {downloadLoading ? '下載中...' : '下載 .m3u'}
-                    </Button>
-                    <Button
-                        onClick={handleSyncToJellyfin}
-                        disabled={syncLoading}
-                        variant="default"
-                        className="bg-gray-600 hover:bg-gray-700"
-                    >
-                        <CloudUpload className="w-4 h-4" />
-                        {syncLoading ? '同步中...' : '同步到 Jellyfin'}
                     </Button>
                 </div>
             </div>

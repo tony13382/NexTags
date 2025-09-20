@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Plus, ListMusic, RefreshCcw, Edit, Trash2 } from 'lucide-react';
+import { Plus, ListMusic, RefreshCcw, Edit, Trash2, Download, FileText, FolderPlus } from 'lucide-react';
 import PlaylistEditDialog from '@/components/PlaylistEditDialog';
 import TaskStatusDialog from '@/components/TaskStatusDialog';
 
@@ -13,7 +13,6 @@ interface SmartPlaylist {
   filter_tags: string[];
   filter_language: string | null;
   filter_favorites: boolean | null;
-  jellyfin_playlist_id: string;
   filter_tags_display: string[];
   filter_language_display: string;
   filter_favorites_display: string;
@@ -33,7 +32,6 @@ export default function PlaylistsPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingPlaylist, setEditingPlaylist] = useState<SmartPlaylist | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [syncingIndex, setSyncingIndex] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -41,6 +39,7 @@ export default function PlaylistsPage() {
   const [deletingPlaylist, setDeletingPlaylist] = useState<SmartPlaylist | null>(null);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [generatingAll, setGeneratingAll] = useState(false);
 
   useEffect(() => {
     fetchPlaylists();
@@ -140,42 +139,6 @@ export default function PlaylistsPage() {
     setEditDialogOpen(true);
   };
 
-  const handleSyncToJellyfin = async (index: number, playlist: SmartPlaylist) => {
-    if (!playlist.jellyfin_playlist_id) {
-      setError('此播放清單沒有設定 Jellyfin Playlist ID');
-      return;
-    }
-
-    try {
-      setSyncingIndex(index);
-      setError(null);
-      setSuccessMessage(null);
-
-      const response = await fetch(`/api/playlists/${index}/sync-to-jellyfin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (data.success && data.task_id) {
-        // 異步任務已創建，開啟任務狀態對話框
-        setCurrentTaskId(data.task_id);
-        setTaskDialogOpen(true);
-        setSuccessMessage(`${data.message}，任務 ID: ${data.task_id}`);
-        setTimeout(() => setSuccessMessage(null), 5000);
-      } else {
-        setError(data.message || '創建同步任務失敗');
-      }
-    } catch (err) {
-      setError('網路錯誤，請稍後再試');
-      console.error('Error creating sync task:', err);
-    } finally {
-      setSyncingIndex(null);
-    }
-  };
 
   const handleDeletePlaylist = (playlist: SmartPlaylist, index: number) => {
     setDeletingPlaylist(playlist);
@@ -226,6 +189,93 @@ export default function PlaylistsPage() {
     setDeletingIndex(null);
   };
 
+  const handleDownloadM3U = (index: number, playlist: SmartPlaylist) => {
+    try {
+      // 創建下載連結
+      const downloadUrl = `/api/playlists/${index}/download-m3u`;
+      
+      // 創建隐藏的 a 標籤來觸發下載
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${playlist.name}.m3u`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setSuccessMessage(`開始下載播放清單 "${playlist.name}" 的 M3U 檔案`);
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (error) {
+      console.error('Download error:', error);
+      setError('下載失敗，請稍後再試');
+    }
+  };
+
+  const handleGenerateM3U = async (index: number, playlist: SmartPlaylist) => {
+    try {
+      setError(null);
+      setSuccessMessage(null);
+
+      const response = await fetch(`/api/playlists/${index}/generate-m3u`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccessMessage(`成功生成 M3U 檔案到 ${data.file_path}`);
+        setTimeout(() => setSuccessMessage(null), 5000);
+      } else {
+        setError(data.message || '生成 M3U 檔案失敗');
+      }
+    } catch (err) {
+      setError('網路錯誤，請稍後再試');
+      console.error('Error generating M3U file:', err);
+    }
+  };
+
+  const handleGenerateAllM3U = async () => {
+    try {
+      setError(null);
+      setSuccessMessage(null);
+      setGeneratingAll(true);
+
+      const response = await fetch('/api/playlists/generate-all-m3u', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        const { success_count, error_count, total_count } = data;
+        let message = `批量生成完成！總共 ${total_count} 個播放清單：成功 ${success_count} 個`;
+        if (error_count > 0) {
+          message += `，失敗 ${error_count} 個`;
+        }
+        
+        setSuccessMessage(message);
+        setTimeout(() => setSuccessMessage(null), 8000);
+        
+        // 如果有錯誤，在控制台記錄詳細信息
+        if (data.errors && data.errors.length > 0) {
+          console.error('批量生成錯誤:', data.errors);
+        }
+      } else {
+        setError(data.message || '批量生成 M3U 檔案失敗');
+      }
+    } catch (err) {
+      setError('網路錯誤，請稍後再試');
+      console.error('Error generating all M3U files:', err);
+    } finally {
+      setGeneratingAll(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="mx-auto px-8 py-4">
@@ -255,13 +305,27 @@ export default function PlaylistsPage() {
     <div className="mx-auto px-8 py-4">
       <div className="flex justify-between items-center mt-4 mb-6">
         <h1 className="text-2xl font-bold text-gray-900">播放清單管理</h1>
-        <Button
-          onClick={handleAddPlaylist}
-          className="bg-gray-600 hover:bg-gray-700 text-white"
-        >
-          <Plus className="w-4 h-4" />
-          Add Playlist
-        </Button>
+        <div className="flex gap-3">
+          <Button
+            onClick={handleGenerateAllM3U}
+            disabled={generatingAll}
+            className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400"
+          >
+            {generatingAll ? (
+              <RefreshCcw className="w-4 h-4 animate-spin" />
+            ) : (
+              <FolderPlus className="w-4 h-4" />
+            )}
+            {generatingAll ? '生成中...' : '批量生成 M3U'}
+          </Button>
+          <Button
+            onClick={handleAddPlaylist}
+            className="bg-gray-600 hover:bg-gray-700 text-white"
+          >
+            <Plus className="w-4 h-4" />
+            Add Playlist
+          </Button>
+        </div>
       </div>
 
       {/* 成功訊息 */}
@@ -294,9 +358,6 @@ export default function PlaylistsPage() {
                 <thead>
                   <tr className="border-b bg-gray-50">
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
-                      Jellyfin Playlist Id
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
                       Title
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
@@ -319,9 +380,6 @@ export default function PlaylistsPage() {
                 <tbody>
                   {playlists.map((playlist, index) => (
                     <tr key={index} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-900 font-mono truncate max-w-[200px] min-w-[100px]">
-                        {playlist.jellyfin_playlist_id || '未設定'}
-                      </td>
                       <td className="px-4 py-3 text-gray-900 font-medium max-w-[240px] min-w-[100px]">
                         {playlist.name}
                       </td>
@@ -370,15 +428,18 @@ export default function PlaylistsPage() {
                           <Edit className="w-5 h-5" />
                         </button>
                         <button
-                          onClick={() => handleSyncToJellyfin(index, playlist)}
-                          disabled={syncingIndex === index}
-                          className={`m-1 inline-flex items-center p-2 text-xs rounded ${syncingIndex === index
-                            ? 'bg-gray-50 text-gray-50 cursor-not-allowed'
-                            : 'border text-gray-800 hover:bg-gray-100'
-                            }`}
-                          title={playlist.jellyfin_playlist_id ? "同步到 Jellyfin" : "需要設定 Jellyfin Playlist ID"}
+                          onClick={() => handleDownloadM3U(index, playlist)}
+                          className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
+                          title="下載 M3U 檔案"
                         >
-                          <RefreshCcw className={`w-5 h-5 ${syncingIndex === index ? 'animate-spin' : ''}`} />
+                          <Download className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleGenerateM3U(index, playlist)}
+                          className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
+                          title="生成 M3U 檔案到檔案系統"
+                        >
+                          <FileText className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleDeletePlaylist(playlist, index)}

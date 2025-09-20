@@ -8,7 +8,6 @@ class SmartPlaylist(BaseModel):
     filter_tags: List[str] = Field(default_factory=list, description="標籤過濾條件")
     filter_language: Optional[str] = Field(None, description="語言過濾條件")
     filter_favorites: Optional[bool] = Field(None, description="我的最愛過濾條件")
-    jellyfin_playlist_id: str = Field(default="", description="Jellyfin 播放清單 ID")
     
     # 新增完整顯示資訊
     filter_tags_display: List[str] = Field(default_factory=list, description="標籤顯示名稱")
@@ -22,7 +21,6 @@ class SmartPlaylistCreate(BaseModel):
     filter_tags: List[str] = Field(default_factory=list, description="標籤過濾條件")
     filter_language: Optional[str] = Field(None, description="語言過濾條件 (例如: chi, eng, kor)")
     filter_favorites: Optional[bool] = Field(None, description="我的最愛過濾條件")
-    jellyfin_playlist_id: str = Field(default="", description="Jellyfin 播放清單 ID")
 
 class SmartPlaylistUpdate(BaseModel):
     """更新智慧播放清單請求模型"""
@@ -31,7 +29,6 @@ class SmartPlaylistUpdate(BaseModel):
     filter_tags: Optional[List[str]] = Field(None, description="標籤過濾條件")
     filter_language: Optional[str] = Field(None, description="語言過濾條件 (例如: chi, eng, kor)")
     filter_favorites: Optional[bool] = Field(None, description="我的最愛過濾條件")
-    jellyfin_playlist_id: Optional[str] = Field(None, description="Jellyfin 播放清單 ID")
 
 class SmartPlaylistResponse(BaseModel):
     """智慧播放清單響應模型"""

@@ -12,7 +12,6 @@ interface SmartPlaylist {
     filter_tags: string[];
     filter_language: string | null;
     filter_favorites: boolean | null;
-    jellyfin_playlist_id: string;
     filter_tags_display: string[];
     filter_language_display: string;
     filter_favorites_display: string;
@@ -50,8 +49,7 @@ export default function PlaylistEditDialog({
                     base_folder: playlist.base_folder,
                     filter_tags: [...(playlist.filter_tags || [])],
                     filter_language: playlist.filter_language,
-                    filter_favorites: playlist.filter_favorites,
-                    jellyfin_playlist_id: playlist.jellyfin_playlist_id || ''
+                    filter_favorites: playlist.filter_favorites
                 });
             } else {
                 // 新增模式
@@ -60,8 +58,7 @@ export default function PlaylistEditDialog({
                     base_folder: '',
                     filter_tags: [],
                     filter_language: null,
-                    filter_favorites: null,
-                    jellyfin_playlist_id: ''
+                    filter_favorites: null
                 });
             }
         }
@@ -163,16 +160,6 @@ export default function PlaylistEditDialog({
                         />
                     </div>
 
-                    {/* Jellyfin Playlist ID */}
-                    <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Jellyfin Playlist Id</label>
-                        <Input
-                            value={editedPlaylist.jellyfin_playlist_id || ''}
-                            onChange={(e) => handleInputChange('jellyfin_playlist_id', e.target.value)}
-                            placeholder="Jellyfin 播放清單 ID"
-                            className="font-mono text-sm"
-                        />
-                    </div>
 
                     {/* BaseFolder */}
                     <div>
