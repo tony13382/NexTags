@@ -4,7 +4,7 @@ import glob
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Path as FastAPIPath
+from fastapi import APIRouter, HTTPException, Path as FastAPIPath, Query
 from fastapi.responses import Response
 from app.schemas.playlists import (
     SmartPlaylist,
@@ -177,7 +177,7 @@ def sort_songs_by_creation_time(songs: List[str]) -> List[str]:
     try:
         songs_with_time = []
         logger.info(f"開始排序 {len(songs)} 首歌曲")
-        
+
         for i, song in enumerate(songs):
             try:
                 # 獲取檔案時間戳
@@ -187,12 +187,12 @@ def sort_songs_by_creation_time(songs: List[str]) -> List[str]:
                 # 為了跨平台相容性，我們同時記錄兩個時間戳
                 creation_time = stat.st_ctime  # 可能是建立時間（Windows）或狀態改變時間（Linux）
                 modification_time = stat.st_mtime  # 修改時間
-                
+
                 # 使用修改時間作為排序基準，因為它在跨平台上更一致
                 sort_time = modification_time
-                
+
                 songs_with_time.append((song, sort_time))
-                
+
                 # 詳細日誌前5個檔案的時間戳
                 if i < 5:
                     from datetime import datetime
@@ -202,27 +202,74 @@ def sort_songs_by_creation_time(songs: List[str]) -> List[str]:
                     logger.info(f"  st_ctime: {ctime_str}")
                     logger.info(f"  st_mtime: {mtime_str}")
                     logger.info(f"  使用時間: {mtime_str}")
-                    
+
             except Exception as e:
                 logger.warning(f"無法獲取檔案 {song} 的時間戳: {str(e)}")
                 # 如果無法獲取時間，使用0（排到最後）
                 songs_with_time.append((song, 0))
-        
+
         # 按排序時間排序（新→舊）
         songs_with_time.sort(key=lambda x: x[1], reverse=True)
         sorted_songs = [song for song, _ in songs_with_time]
-        
+
         # 日誌排序結果
         logger.info(f"排序完成，前3首歌曲:")
         for i, (song, sort_time) in enumerate(songs_with_time[:3]):
             from datetime import datetime
             time_str = datetime.fromtimestamp(sort_time).strftime('%Y-%m-%d %H:%M:%S')
             logger.info(f"  {i+1}. {os.path.basename(song)} ({time_str})")
-        
+
         return sorted_songs
-        
+
     except Exception as e:
         logger.error(f"排序歌曲失敗: {str(e)}")
+        return songs
+
+def sort_songs_by_title(songs: List[str]) -> List[str]:
+    """根據歌曲標題排序（A→Z）"""
+    try:
+        songs_with_title = []
+        logger.info(f"開始依標題排序 {len(songs)} 首歌曲")
+
+        for i, song in enumerate(songs):
+            try:
+                # 使用快取讀取檔案標籤
+                tags = tags_cache.get_cached_tags_with_fallback(song)
+
+                # 優先使用 titlesort，其次使用 title，最後使用檔案名
+                sort_title = tags.get('titlesort', '') or tags.get('title', '') or os.path.basename(song)
+                display_title = tags.get('title', '') or os.path.basename(song)
+
+                # 將排序標題轉為小寫進行排序，以便不區分大小寫
+                sort_key = sort_title.lower()
+
+                songs_with_title.append((song, sort_key, display_title))
+
+                # 詳細日誌前5個檔案的標題
+                if i < 5:
+                    logger.info(f"檔案 {i+1}: {os.path.basename(song)}")
+                    logger.info(f"  顯示標題: {display_title}")
+                    logger.info(f"  排序標題 (TitleSort): {sort_title}")
+
+            except Exception as e:
+                logger.warning(f"無法獲取檔案 {song} 的標題: {str(e)}")
+                # 如果無法獲取標題，使用檔案名稱
+                filename = os.path.basename(song)
+                songs_with_title.append((song, filename.lower(), filename))
+
+        # 按標題排序（A→Z）
+        songs_with_title.sort(key=lambda x: x[1])
+        sorted_songs = [song for song, _, _ in songs_with_title]
+
+        # 日誌排序結果
+        logger.info(f"標題排序完成，前3首歌曲:")
+        for i, (song, sort_key, display_title) in enumerate(songs_with_title[:3]):
+            logger.info(f"  {i+1}. {display_title} (排序鍵: {sort_key})")
+
+        return sorted_songs
+
+    except Exception as e:
+        logger.error(f"依標題排序歌曲失敗: {str(e)}")
         return songs
 
 
@@ -244,25 +291,42 @@ def get_favorites_display_name(favorites: Optional[bool]) -> str:
         return "不篩選"
     return "只包含我的最愛" if favorites else "排除我的最愛"
 
+def get_sort_method_display_name(sort_method: str) -> str:
+    """獲取排序方式的顯示名稱"""
+    sort_methods = {
+        "creation_time": "檔案建立時間",
+        "title": "標題 (TitleSort)"
+    }
+    return sort_methods.get(sort_method, "檔案建立時間")
+
 def enrich_playlist_data(playlist_data: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     """豐富播放清單資料，加入顯示名稱"""
     enriched_data = playlist_data.copy()
-    
+
     # 加入語言顯示名稱
     enriched_data["filter_language_display"] = get_language_display_name(
         playlist_data.get("filter_language"), config
     )
-    
+
     # 加入標籤顯示名稱
     enriched_data["filter_tags_display"] = get_tags_display_names(
         playlist_data.get("filter_tags", []), config
     )
-    
+
     # 加入我的最愛顯示名稱
     enriched_data["filter_favorites_display"] = get_favorites_display_name(
         playlist_data.get("filter_favorites")
     )
-    
+
+    # 加入排序方式顯示名稱
+    enriched_data["sort_method_display"] = get_sort_method_display_name(
+        playlist_data.get("sort_method", "creation_time")
+    )
+
+    # 確保 sort_method 欄位存在，預設為 creation_time
+    if "sort_method" not in enriched_data:
+        enriched_data["sort_method"] = "creation_time"
+
     return enriched_data
 
 @router.get("/", response_model=SmartPlaylistResponse)
@@ -393,7 +457,8 @@ async def update_playlist(
 
 @router.get("/{index}/songs")
 async def get_playlist_songs(
-    index: int = FastAPIPath(..., ge=0, description="播放清單索引")
+    index: int = FastAPIPath(..., ge=0, description="播放清單索引"),
+    sort_by: str = Query("creation_time", description="排序方式: creation_time 或 title")
 ):
     """取得指定播放清單的歌曲清單，包含排序日期資訊"""
     try:
@@ -437,8 +502,16 @@ async def get_playlist_songs(
                 "total_count": 0
             }
         
-        # 使用檔案建立時間排序（新→舊）
-        sorted_songs = sort_songs_by_creation_time(filtered_songs)
+        # 根據排序方式選擇排序函數，優先使用查詢參數，其次使用播放清單設定
+        effective_sort_method = sort_by if sort_by != "creation_time" else playlist.get('sort_method', 'creation_time')
+
+        if effective_sort_method == "title":
+            sorted_songs = sort_songs_by_title(filtered_songs)
+            sort_method_desc = "title"
+        else:
+            # 預設使用檔案建立時間排序（新→舊）
+            sorted_songs = sort_songs_by_creation_time(filtered_songs)
+            sort_method_desc = "file_creation_time"
         
         # 建立回傳的歌曲列表（包含排序日期資訊）
         songs_with_dates = []
@@ -483,12 +556,12 @@ async def get_playlist_songs(
             "filter_favorites": playlist.get('filter_favorites'),
             "total_files_found": len(audio_files),
             "files_after_filtering": len(songs_with_dates),
-            "sort_method": "file_creation_time"
+            "sort_method": sort_method_desc
         }
         
         return {
             "success": True,
-            "message": f"成功取得播放清單 '{playlist['name']}' 的歌曲清單（按檔案建立時間排序）",
+            "message": f"成功取得播放清單 '{playlist['name']}' 的歌曲清單（排序方式: {sort_method_desc}）",
             "playlist_name": playlist['name'],
             "playlist_index": index,
             "filter_summary": filter_summary,
@@ -547,12 +620,17 @@ def generate_m3u_content(playlist: Dict[str, Any], playlist_name: str, use_relat
     """生成 M3U 檔案內容的通用函數"""
     # 搜尋基礎資料夾中的音訊檔案
     audio_files = find_audio_files(playlist['base_folder'])
-    
+
     # 根據播放清單條件篩選歌曲
     filtered_songs = filter_songs_by_playlist(playlist, audio_files)
-    
-    # 使用檔案建立時間排序（新→舊）
-    sorted_songs = sort_songs_by_creation_time(filtered_songs)
+
+    # 根據播放清單設定的排序方式排序
+    sort_method = playlist.get('sort_method', 'creation_time')
+    if sort_method == 'title':
+        sorted_songs = sort_songs_by_title(filtered_songs)
+    else:
+        # 預設使用檔案建立時間排序（新→舊）
+        sorted_songs = sort_songs_by_creation_time(filtered_songs)
     
     logger.info(f"找到 {len(sorted_songs)} 首歌曲，生成 M3U 檔案")
     

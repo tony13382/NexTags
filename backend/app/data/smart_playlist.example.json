@@ -5,6 +5,7 @@
         "filter_tags" : [],
         "filter_language": "",
         "filter_favorites": "",
+        "sort_method": "creation_time"
     },
     {
         "name": "所有中文音樂",
@@ -12,6 +13,7 @@
         "filter_tags" : [],
         "filter_language": "chi",
         "filter_favorites": false,
+        "sort_method": "creation_time"
     },
     {
         "name": "最愛純音樂",
@@ -19,6 +21,7 @@
         "filter_tags" : [],
         "filter_language": null,
         "filter_favorites": true,
+        "sort_method": "title"
     },
     {
         "name": "悲傷樂曲",
@@ -26,6 +29,7 @@
         "filter_tags" : ["悲傷"],
         "filter_language": null,
         "filter_favorites": false,
+        "sort_method": "creation_time"
     },
     {
         "name": "（開車用）2000 年代英語樂曲",
@@ -33,5 +37,6 @@
         "filter_tags" : ["2000 年代流行曲","開車精選"],
         "filter_language": "eng",
         "filter_favorites": false,
+        "sort_method": "title"
     }
 ]

@@ -8,11 +8,13 @@ class SmartPlaylist(BaseModel):
     filter_tags: List[str] = Field(default_factory=list, description="標籤過濾條件")
     filter_language: Optional[str] = Field(None, description="語言過濾條件")
     filter_favorites: Optional[bool] = Field(None, description="我的最愛過濾條件")
-    
+    sort_method: str = Field("creation_time", description="排序方式: creation_time 或 title (titlesort)")
+
     # 新增完整顯示資訊
     filter_tags_display: List[str] = Field(default_factory=list, description="標籤顯示名稱")
     filter_language_display: Optional[str] = Field(None, description="語言顯示名稱")
     filter_favorites_display: Optional[str] = Field(None, description="我的最愛顯示名稱")
+    sort_method_display: str = Field("檔案建立時間", description="排序方式顯示名稱")
 
 class SmartPlaylistCreate(BaseModel):
     """創建智慧播放清單請求模型"""
@@ -21,6 +23,7 @@ class SmartPlaylistCreate(BaseModel):
     filter_tags: List[str] = Field(default_factory=list, description="標籤過濾條件")
     filter_language: Optional[str] = Field(None, description="語言過濾條件 (例如: chi, eng, kor)")
     filter_favorites: Optional[bool] = Field(None, description="我的最愛過濾條件")
+    sort_method: str = Field("creation_time", description="排序方式: creation_time 或 title (titlesort)")
 
 class SmartPlaylistUpdate(BaseModel):
     """更新智慧播放清單請求模型"""
@@ -29,6 +32,7 @@ class SmartPlaylistUpdate(BaseModel):
     filter_tags: Optional[List[str]] = Field(None, description="標籤過濾條件")
     filter_language: Optional[str] = Field(None, description="語言過濾條件 (例如: chi, eng, kor)")
     filter_favorites: Optional[bool] = Field(None, description="我的最愛過濾條件")
+    sort_method: Optional[str] = Field(None, description="排序方式: creation_time 或 title (titlesort)")
 
 class SmartPlaylistResponse(BaseModel):
     """智慧播放清單響應模型"""

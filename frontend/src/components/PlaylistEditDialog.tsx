@@ -12,9 +12,11 @@ interface SmartPlaylist {
     filter_tags: string[];
     filter_language: string | null;
     filter_favorites: boolean | null;
+    sort_method: string;
     filter_tags_display: string[];
     filter_language_display: string;
     filter_favorites_display: string;
+    sort_method_display: string;
 }
 
 interface PlaylistEditDialogProps {
@@ -49,7 +51,8 @@ export default function PlaylistEditDialog({
                     base_folder: playlist.base_folder,
                     filter_tags: [...(playlist.filter_tags || [])],
                     filter_language: playlist.filter_language,
-                    filter_favorites: playlist.filter_favorites
+                    filter_favorites: playlist.filter_favorites,
+                    sort_method: playlist.sort_method || 'creation_time'
                 });
             } else {
                 // 新增模式
@@ -58,7 +61,8 @@ export default function PlaylistEditDialog({
                     base_folder: '',
                     filter_tags: [],
                     filter_language: null,
-                    filter_favorites: null
+                    filter_favorites: null,
+                    sort_method: 'creation_time'
                 });
             }
         }
@@ -236,6 +240,19 @@ export default function PlaylistEditDialog({
                             <option value="">不設定</option>
                             <option value="true">是</option>
                             <option value="false">否</option>
+                        </select>
+                    </div>
+
+                    {/* Sort Method */}
+                    <div>
+                        <label className="text-sm font-medium text-gray-700 block mb-2">Sort Method (排序方式)</label>
+                        <select
+                            value={editedPlaylist.sort_method || 'creation_time'}
+                            onChange={(e) => handleInputChange('sort_method', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="creation_time">檔案建立時間 (File Creation Time)</option>
+                            <option value="title">標題 (TitleSort)</option>
                         </select>
                     </div>
                 </div>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Plus, ListMusic, RefreshCcw, Edit, Trash2, Download, FileText, FolderPlus } from 'lucide-react';
+import { Plus, ListMusic, RefreshCcw, Edit, Trash2, Download, FileText, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import PlaylistEditDialog from '@/components/PlaylistEditDialog';
 import TaskStatusDialog from '@/components/TaskStatusDialog';
 
@@ -13,9 +13,11 @@ interface SmartPlaylist {
   filter_tags: string[];
   filter_language: string | null;
   filter_favorites: boolean | null;
+  sort_method: string;
   filter_tags_display: string[];
   filter_language_display: string;
   filter_favorites_display: string;
+  sort_method_display: string;
 }
 
 interface PlaylistsResponse {
@@ -40,6 +42,8 @@ export default function PlaylistsPage() {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [generatingAll, setGeneratingAll] = useState(false);
+  const [sortField, setSortField] = useState<'name' | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
     fetchPlaylists();
@@ -137,6 +141,51 @@ export default function PlaylistsPage() {
     setEditingIndex(null);
     setIsCreating(true);
     setEditDialogOpen(true);
+  };
+
+  const handleSort = (field: 'name') => {
+    if (sortField === field) {
+      // 如果點擊同一個欄位，切換排序方向
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // 如果點擊不同欄位，設定新欄位並重設為升序
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortedPlaylists = () => {
+    if (!sortField) return playlists;
+
+    const sorted = [...playlists].sort((a, b) => {
+      let aValue = '';
+      let bValue = '';
+
+      if (sortField === 'name') {
+        aValue = a.name.toLowerCase();
+        bValue = b.name.toLowerCase();
+      }
+
+      if (sortDirection === 'asc') {
+        return aValue.localeCompare(bValue);
+      } else {
+        return bValue.localeCompare(aValue);
+      }
+    });
+
+    return sorted;
+  };
+
+  const getSortIcon = (field: 'name') => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-4 h-4 text-gray-400" />;
+    }
+
+    if (sortDirection === 'asc') {
+      return <ArrowUp className="w-4 h-4 text-gray-600" />;
+    } else {
+      return <ArrowDown className="w-4 h-4 text-gray-600" />;
+    }
   };
 
 
@@ -358,7 +407,13 @@ export default function PlaylistsPage() {
                 <thead>
                   <tr className="border-b bg-gray-50">
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
-                      Title
+                      <button
+                        onClick={() => handleSort('name')}
+                        className="flex items-center gap-2 hover:text-gray-700 transition-colors"
+                      >
+                        Title
+                        {getSortIcon('name')}
+                      </button>
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
                       FilterTags (篩選)
@@ -372,14 +427,20 @@ export default function PlaylistsPage() {
                     <th className="px-4 py-3 text-center text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
                       FilterFavorites
                     </th>
+                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-900 max-w-[150px] min-w-[120px]">
+                      Sort Method
+                    </th>
                     <th className="px-4 py-3 text-center text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
                       Action
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {playlists.map((playlist, index) => (
-                    <tr key={index} className="border-b hover:bg-gray-50">
+                  {getSortedPlaylists().map((playlist, displayIndex) => {
+                    // 尋找原始索引
+                    const originalIndex = playlists.findIndex(p => p.name === playlist.name && p.base_folder === playlist.base_folder);
+                    return (
+                    <tr key={originalIndex} className="border-b hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-900 font-medium max-w-[240px] min-w-[100px]">
                         {playlist.name}
                       </td>
@@ -412,37 +473,42 @@ export default function PlaylistsPage() {
                           {playlist.filter_favorites_display}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-center text-gray-900 max-w-[150px] min-w-[120px]">
+                        <span className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                          {playlist.sort_method_display}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 max-w-[280px] min-w-[100px] text-center">
                         <Link
-                          href={`/playlist/${index}`}
+                          href={`/playlist/${originalIndex}`}
                           className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
                           title="查看播放清單"
                         >
                           <ListMusic className="w-5 h-5" />
                         </Link>
                         <button
-                          onClick={() => handleEditPlaylist(playlist, index)}
+                          onClick={() => handleEditPlaylist(playlist, originalIndex)}
                           className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
                           title="編輯播放清單"
                         >
                           <Edit className="w-5 h-5" />
                         </button>
                         <button
-                          onClick={() => handleDownloadM3U(index, playlist)}
+                          onClick={() => handleDownloadM3U(originalIndex, playlist)}
                           className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
                           title="下載 M3U 檔案"
                         >
                           <Download className="w-5 h-5" />
                         </button>
                         <button
-                          onClick={() => handleGenerateM3U(index, playlist)}
+                          onClick={() => handleGenerateM3U(originalIndex, playlist)}
                           className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
                           title="生成 M3U 檔案到檔案系統"
                         >
                           <FileText className="w-5 h-5" />
                         </button>
                         <button
-                          onClick={() => handleDeletePlaylist(playlist, index)}
+                          onClick={() => handleDeletePlaylist(playlist, originalIndex)}
                           className="m-1 inline-flex items-center p-2 text-xs text-red-800 rounded border border-red-200 hover:bg-red-100"
                           title="刪除播放清單"
                         >
@@ -450,7 +516,8 @@ export default function PlaylistsPage() {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

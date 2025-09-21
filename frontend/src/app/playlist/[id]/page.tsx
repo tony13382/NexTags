@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, Download, ArrowUpDown } from 'lucide-react';
 
 interface SongWithDate {
     file_path: string | null;
@@ -39,17 +39,19 @@ export default function PlaylistDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [downloadLoading, setDownloadLoading] = useState(false);
+    const [sortBy, setSortBy] = useState<'creation_time' | 'title'>('creation_time');
 
     useEffect(() => {
         if (playlistId) {
             fetchPlaylistSongs();
         }
-    }, [playlistId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [playlistId, sortBy]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchPlaylistSongs = async () => {
         try {
             setLoading(true);
-            const response = await fetch(`/api/playlists/${playlistId}/songs`);
+            const url = `/api/playlists/${playlistId}/songs?sort_by=${sortBy}`;
+            const response = await fetch(url);
             const data: PlaylistSongsResponse = await response.json();
 
             if (data.success) {
@@ -184,6 +186,18 @@ export default function PlaylistDetailPage() {
                     </h1>
                 </div>
                 <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">排序:</span>
+                        <Button
+                            onClick={() => setSortBy(sortBy === 'creation_time' ? 'title' : 'creation_time')}
+                            variant="outline"
+                            size="sm"
+                            className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                        >
+                            <ArrowUpDown className="w-4 h-4 mr-1" />
+                            {sortBy === 'creation_time' ? '檔案建立時間' : '標題'}
+                        </Button>
+                    </div>
                     <Button
                         onClick={handleDownloadM3U}
                         disabled={downloadLoading}
