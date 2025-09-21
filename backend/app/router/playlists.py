@@ -225,94 +225,6 @@ def sort_songs_by_creation_time(songs: List[str]) -> List[str]:
         logger.error(f"排序歌曲失敗: {str(e)}")
         return songs
 
-def sort_songs_by_jellyfin_add_time(songs: List[str]) -> List[str]:
-    """根據 jellyfin_add_time 標籤排序（新→舊）
-    
-    優先使用本地 jellyfin_add_time 標籤，若不存在則使用檔案修改時間
-    
-    Args:
-        songs: 歌曲檔案路徑列表
-        
-    Returns:
-        排序後的歌曲檔案路徑列表
-    """
-    try:
-        songs_with_time = []
-        logger.info(f"開始使用 jellyfin_add_time 標籤排序 {len(songs)} 首歌曲")
-        
-        for i, song in enumerate(songs):
-            try:
-                # 使用快取讀取檔案標籤
-                tags = tags_cache.get_cached_tags_with_fallback(song)
-                jellyfin_add_time = tags.get('jellyfin_add_time', '').strip()
-                
-                if jellyfin_add_time:
-                    # 解析 jellyfin_add_time 標籤中的時間
-                    try:
-                        # Jellyfin 時間格式通常是 ISO 格式，例如 "2024-01-15T10:30:00.0000000Z"
-                        if 'T' in jellyfin_add_time:
-                            # 移除多餘的零和時區標記進行解析
-                            clean_date = jellyfin_add_time.split('.')[0] if '.' in jellyfin_add_time else jellyfin_add_time.rstrip('Z')
-                            sort_time = datetime.fromisoformat(clean_date).timestamp()
-                        else:
-                            # 如果不是標準 ISO 格式，嘗試其他格式
-                            sort_time = datetime.fromisoformat(jellyfin_add_time).timestamp()
-                        
-                        songs_with_time.append((song, sort_time, 'jellyfin_add_time'))
-                        
-                        # 詳細日誌前5個檔案的標籤時間
-                        if i < 5:
-                            time_str = datetime.fromtimestamp(sort_time).strftime('%Y-%m-%d %H:%M:%S')
-                            logger.info(f"檔案 {i+1}: {os.path.basename(song)}")
-                            logger.info(f"  jellyfin_add_time: {jellyfin_add_time}")
-                            logger.info(f"  解析後時間: {time_str}")
-                        
-                    except Exception as parse_error:
-                        logger.warning(f"無法解析 jellyfin_add_time '{jellyfin_add_time}' for {song}: {str(parse_error)}")
-                        # 回退到檔案修改時間
-                        stat = os.stat(song)
-                        sort_time = stat.st_mtime
-                        songs_with_time.append((song, sort_time, 'file_mtime'))
-                else:
-                    # 如果沒有 jellyfin_add_time 標籤，使用檔案修改時間
-                    stat = os.stat(song)
-                    sort_time = stat.st_mtime
-                    songs_with_time.append((song, sort_time, 'file_mtime'))
-                    
-                    if i < 5:
-                        time_str = datetime.fromtimestamp(sort_time).strftime('%Y-%m-%d %H:%M:%S')
-                        logger.info(f"檔案 {i+1}: {os.path.basename(song)}")
-                        logger.info(f"  使用檔案修改時間: {time_str}")
-                    
-            except Exception as e:
-                logger.warning(f"無法獲取檔案 {song} 的時間資訊: {str(e)}")
-                # 如果無法獲取時間，使用0（排到最後）
-                songs_with_time.append((song, 0, 'error'))
-        
-        # 按排序時間排序（新→舊）
-        songs_with_time.sort(key=lambda x: x[1], reverse=True)
-        sorted_songs = [song for song, _, _ in songs_with_time]
-        
-        # 統計排序方式
-        tag_count = sum(1 for _, _, source in songs_with_time if source == 'jellyfin_add_time')
-        file_count = sum(1 for _, _, source in songs_with_time if source == 'file_mtime')
-        error_count = sum(1 for _, _, source in songs_with_time if source == 'error')
-        
-        logger.info(f"排序完成：{tag_count} 個使用 jellyfin_add_time 標籤，{file_count} 個使用檔案時間，{error_count} 個錯誤")
-        
-        # 日誌排序結果
-        logger.info(f"排序結果前3首歌曲:")
-        for i, (song, sort_time, source) in enumerate(songs_with_time[:3]):
-            time_str = datetime.fromtimestamp(sort_time).strftime('%Y-%m-%d %H:%M:%S') if sort_time > 0 else 'Unknown'
-            logger.info(f"  {i+1}. {os.path.basename(song)} ({time_str}, 來源: {source})")
-        
-        return sorted_songs
-        
-    except Exception as e:
-        logger.error(f"使用 jellyfin_add_time 標籤排序歌曲失敗: {str(e)}")
-        # 回退到原始的檔案時間排序
-        logger.info("回退到檔案修改時間排序")
-        return sort_songs_by_creation_time(songs)
 
 def get_language_display_name(language_code: str, config: Dict[str, Any]) -> str:
     """根據語言代碼獲取顯示名稱"""
@@ -534,7 +446,6 @@ async def get_playlist_songs(
             try:
                 # 使用快取讀取檔案標籤
                 tags = tags_cache.get_cached_tags_with_fallback(file_path)
-                jellyfin_id = tags.get('jfid', '').strip()
                 song_name = tags.get('title', '') or os.path.basename(file_path)
                 
                 # 使用檔案修改時間作為主要時間來源
@@ -552,9 +463,7 @@ async def get_playlist_songs(
                 
                 songs_with_dates.append({
                     "file_path": file_path,
-                    "jellyfin_date_created": file_creation_time,  # 使用檔案修改時間
                     "formatted_date": formatted_date,
-                    "jellyfin_id": jellyfin_id,
                     "song_name": song_name
                 })
                 
@@ -562,9 +471,7 @@ async def get_playlist_songs(
                 logger.warning(f"處理檔案 {file_path} 時發生錯誤: {str(e)}")
                 songs_with_dates.append({
                     "file_path": file_path,
-                    "jellyfin_date_created": "",
                     "formatted_date": "無日期資訊",
-                    "jellyfin_id": "",
                     "song_name": os.path.basename(file_path)
                 })
         

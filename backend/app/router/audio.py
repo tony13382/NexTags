@@ -100,9 +100,9 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
         # 輔助函數：將標籤值轉為字串
         def tag_to_string(value, field_name=None):
             if isinstance(value, list):
-                # Artist 相關字段使用分號分隔
+                # Artist 相關字段使用反斜線分隔
                 if field_name in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
-                    return ';'.join(str(v) for v in value) if value else ''
+                    return '\\'.join(str(v) for v in value) if value else ''
                 else:
                     return ' '.join(str(v) for v in value) if value else ''
             return str(value) if value else ''
@@ -154,8 +154,6 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
             "Cover": cover_path,
             "Lyrics": tag_to_string(tags.get('lyrics', ''), 'lyrics'),
             "Comment": tag_to_string(tags.get('comment', ''), 'comment'),
-            "JfId": tag_to_string(tags.get('jfid', ''), 'jfid'),
-            "JellyfinAddTime": tag_to_string(tags.get('jellyfin_add_time', ''), 'jellyfin_add_time'),
             "ModificationTime": modification_time
         }
     except Exception:
@@ -180,8 +178,6 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
             "Cover": "",
             "Lyrics": "",
             "Comment": "",
-            "JfId": "",
-            "JellyfinAddTime": "",
             "ModificationTime": modification_time
         }
 
@@ -196,34 +192,41 @@ async def get_audio_details_concurrent(file_paths: List[str], allow_folders: Lis
         results = await asyncio.gather(*tasks)
     return results
 
-def apply_filters(audio_details: List[dict], filter_title: Optional[str], filter_folder: Optional[str], filter_favorite: Optional[str]) -> List[dict]:
+def apply_filters(audio_details: List[dict], filter_title: Optional[str], filter_folder: Optional[str], filter_favorite: Optional[str], filter_language: Optional[str]) -> List[dict]:
     """對音訊詳細資訊套用過濾條件"""
     filtered_results = audio_details
-    
+
     # 標題過濾（模糊搜尋，不區分大小寫）
     if filter_title:
         filter_title_lower = filter_title.lower()
         filtered_results = [
-            item for item in filtered_results 
+            item for item in filtered_results
             if filter_title_lower in item.get('Title', '').lower()
         ]
-    
+
     # 資料夾過濾（精確匹配）
     if filter_folder:
         filtered_results = [
-            item for item in filtered_results 
+            item for item in filtered_results
             if item.get('MainFolder', '') == filter_folder
         ]
-    
+
     # 最愛過濾
     if filter_favorite:
         favorite_value = filter_favorite.lower() == 'true'
         favorite_str = "True" if favorite_value else "False"
         filtered_results = [
-            item for item in filtered_results 
+            item for item in filtered_results
             if item.get('Favorite', 'False') == favorite_str
         ]
-    
+
+    # 語言過濾（精確匹配）
+    if filter_language:
+        filtered_results = [
+            item for item in filtered_results
+            if item.get('Language', '').lower() == filter_language.lower()
+        ]
+
     return filtered_results
 
 def _get_file_modification_time(file_path: str) -> float:
@@ -233,28 +236,6 @@ def _get_file_modification_time(file_path: str) -> float:
     except Exception:
         return 0
 
-def _get_jellyfin_add_time(file_path: str) -> float:
-    """獲取 Jellyfin 添加時間的時間戳"""
-    try:
-        from datetime import datetime
-        tags = tags_cache.get_cached_tags_with_fallback(file_path)
-        jellyfin_add_time = tags.get('jellyfin_add_time', '').strip()
-        
-        if jellyfin_add_time:
-            try:
-                # Jellyfin 時間格式通常是 ISO 格式
-                if 'T' in jellyfin_add_time:
-                    clean_date = jellyfin_add_time.split('.')[0] if '.' in jellyfin_add_time else jellyfin_add_time.rstrip('Z')
-                    return datetime.fromisoformat(clean_date).timestamp()
-                else:
-                    return datetime.fromisoformat(jellyfin_add_time).timestamp()
-            except Exception:
-                pass
-        
-        # 如果沒有 jellyfin_add_time 或解析失敗，使用檔案修改時間
-        return _get_file_modification_time(file_path)
-    except Exception:
-        return 0
 
 @router.get("/")
 async def get_audios(
@@ -263,7 +244,8 @@ async def get_audios(
     filterTitle: Optional[str] = Query(None, description="標題過濾，模糊搜尋"),
     filterFolder: Optional[str] = Query(None, description="資料夾過濾"),
     filterFavorite: Optional[str] = Query(None, description="最愛過濾，True或False"),
-    sortBy: Optional[str] = Query("jellyfin_add_time", description="排序方式：jellyfin_add_time 或 modification_time")
+    filterLanguage: Optional[str] = Query(None, description="語言過濾"),
+    sortBy: Optional[str] = Query("modification_time", description="排序方式：modification_time")
 ):
     """獲取允許資料夾中的所有音訊檔案路徑（併發優化版本，支援分頁）"""
     try:
@@ -290,7 +272,7 @@ async def get_audios(
                     break  # 找到匹配的資料夾後跳出內層迴圈
         
         # 檢查是否需要過濾（有任何過濾參數或需要詳細資訊）
-        has_filters = filterTitle or filterFolder or filterFavorite
+        has_filters = filterTitle or filterFolder or filterFavorite or filterLanguage
         need_details = details or has_filters
         
         if need_details:
@@ -299,30 +281,12 @@ async def get_audios(
             
             # 套用過濾條件
             if has_filters:
-                filtered_info = apply_filters(all_detailed_info, filterTitle, filterFolder, filterFavorite)
+                filtered_info = apply_filters(all_detailed_info, filterTitle, filterFolder, filterFavorite, filterLanguage)
             else:
                 filtered_info = all_detailed_info
             
-            # 根據排序方式排序（最新的在前）
-            if sortBy == "jellyfin_add_time":
-                def get_sort_time(item):
-                    jellyfin_time = item.get('JellyfinAddTime', '').strip()
-                    if jellyfin_time:
-                        try:
-                            from datetime import datetime
-                            if 'T' in jellyfin_time:
-                                clean_date = jellyfin_time.split('.')[0] if '.' in jellyfin_time else jellyfin_time.rstrip('Z')
-                                return datetime.fromisoformat(clean_date).timestamp()
-                            else:
-                                return datetime.fromisoformat(jellyfin_time).timestamp()
-                        except Exception:
-                            pass
-                    return item.get('ModificationTime', 0)
-                
-                filtered_info.sort(key=get_sort_time, reverse=True)
-            else:
-                # 按修改時間排序（最新的在前）
-                filtered_info.sort(key=lambda x: x.get('ModificationTime', 0), reverse=True)
+            # 按修改時間排序（最新的在前）
+            filtered_info.sort(key=lambda x: x.get('ModificationTime', 0), reverse=True)
             
             # 分頁參數（基於過濾後的結果）
             page_size = 100
@@ -342,12 +306,8 @@ async def get_audios(
             
         else:
             # 簡單模式（無過濾，無詳細資訊）
-            # 根據排序方式排序（最新的在前）
-            if sortBy == "jellyfin_add_time":
-                all_audio_files.sort(key=lambda x: _get_jellyfin_add_time(x), reverse=True)
-            else:
-                # 按修改時間排序（最新的在前）
-                all_audio_files.sort(key=lambda x: _get_file_modification_time(x), reverse=True)
+            # 按修改時間排序（最新的在前）
+            all_audio_files.sort(key=lambda x: _get_file_modification_time(x), reverse=True)
             
             page_size = 100
             total_count = len(all_audio_files)
@@ -379,7 +339,8 @@ async def get_audios(
             "filters": {
                 "title": filterTitle,
                 "folder": filterFolder,
-                "favorite": filterFavorite
+                "favorite": filterFavorite,
+                "language": filterLanguage
             },
             "sort_by": sortBy
         }

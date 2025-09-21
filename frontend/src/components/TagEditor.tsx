@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { X, ArrowRight, Save, Upload, Image as ImageIcon, Search } from 'lucide-react';
+import { X, ArrowRight, Save, Upload, Image as ImageIcon } from 'lucide-react';
 
 interface Song {
   Title: string;
@@ -24,8 +24,6 @@ interface Song {
   SortComposer?: string;
   Lyrics?: string;
   Comment?: string;
-  JfId?: string;
-  JellyfinAddTime?: string;
 }
 
 interface TagEditorProps {
@@ -56,8 +54,6 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
         SortComposer: song.SortComposer || '',
         Lyrics: song.Lyrics || '',
         Comment: song.Comment || '',
-        JfId: song.JfId || '',
-        JellyfinAddTime: song.JellyfinAddTime || ''
       });
       // 設置封面圖片 - 使用 API 端點
       if (song.Cover) {
@@ -102,12 +98,12 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
   if (!song || !editedSong) return null;
 
   const handleInputChange = (field: keyof Song, value: string | string[]) => {
-    // 處理多歌手輸入（分號分隔）
+    // 處理多歌手輸入（反斜線分隔）
     if (field === 'Artist' || field === 'SortArtist' || field === 'AlbumArtist' || field === 'SortAlbumArtist' || field === 'Composer' || field === 'SortComposer') {
-      if (typeof value === 'string' && value.includes(';')) {
-        // 分號分隔的多歌手，轉為陣列
-        const artists = value.split(';').map(artist => artist.trim()).filter(artist => artist.length > 0);
-        setEditedSong(prev => prev ? { ...prev, [field]: artists.join('; ') } : null);
+      if (typeof value === 'string' && value.includes('\\')) {
+        // 反斜線分隔的多歌手，轉為陣列
+        const artists = value.split('\\').map(artist => artist.trim()).filter(artist => artist.length > 0);
+        setEditedSong(prev => prev ? { ...prev, [field]: artists.join('\\') } : null);
       } else {
         setEditedSong(prev => prev ? { ...prev, [field]: value } : null);
       }
@@ -193,71 +189,7 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
     }
   };
 
-  const autoMatchJellyfinId = async () => {
-    if (!editedSong?.Title || !editedSong?.Artist || !editedSong?.Album) {
-      console.warn('需要標題、藝術家和專輯資訊才能進行自動匹配');
-      return;
-    }
 
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/jellyfin/songs?title=${encodeURIComponent(editedSong.Title)}&artist=${encodeURIComponent(editedSong.Artist)}&album=${encodeURIComponent(editedSong.Album)}&limit=1`);
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.songs && data.songs.length > 0) {
-          const jellyfinId = data.songs[0].Id;
-          handleInputChange('JfId', jellyfinId);
-          console.log('自動匹配成功，Jellyfin ID:', jellyfinId);
-        } else {
-          console.warn('未找到匹配的 Jellyfin 歌曲');
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Jellyfin 搜尋失敗:', response.status, response.statusText, errorData);
-      }
-    } catch (error) {
-      console.error('自動匹配 Jellyfin ID 失敗:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const autoFetchJellyfinAddTime = async () => {
-    if (!editedSong?.JfId) {
-      console.warn('需要 Jellyfin ID 才能獲取添加時間');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // 使用 Jellyfin API 根據 ID 獲取歌曲詳細資訊
-      const response = await fetch(`/api/jellyfin/songs/${encodeURIComponent(editedSong.JfId)}`);
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.song) {
-          const song = data.song;
-          const dateCreated = song.DateCreated;
-          if (dateCreated) {
-            handleInputChange('JellyfinAddTime', dateCreated);
-            console.log('自動獲取 Jellyfin Add Time 成功:', dateCreated);
-          } else {
-            console.warn('該 Jellyfin 歌曲沒有 DateCreated 信息');
-          }
-        } else {
-          console.warn('未找到對應的 Jellyfin 歌曲');
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Jellyfin 查詢失敗:', response.status, response.statusText, errorData);
-      }
-    } catch (error) {
-      console.error('自動獲取 Jellyfin Add Time 失敗:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const processLyrics = async () => {
     if (!editedSong?.Lyrics) return;
@@ -581,55 +513,6 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
                 rows={2}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
               />
-            </div>
-            <div className="flex items-end bg-white rounded-lg gap-4">
-              <div className="flex-1">
-                <label className="text-gray-500 block mb-1">Jellyfin ID</label>
-                <Input
-                  value={editedSong.JfId || ''}
-                  onChange={(e) => handleInputChange('JfId', e.target.value)}
-                  placeholder="輸入 Jellyfin ID..."
-                />
-              </div>
-              <div className="flex justify-center">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={autoMatchJellyfinId}
-                  disabled={loading || !editedSong.Title || !editedSong.Artist || !editedSong.Album}
-                  className="w-auto h-9 px-3"
-                  title="根據標題、藝術家和專輯自動匹配 Jellyfin ID"
-                >
-                  <Search className="h-4 w-4 mr-1" />
-                  自動匹配
-                </Button>
-              </div>
-            </div>
-            <div className="bg-white rounded-lg grid gap-2">
-              <div className="flex items-end gap-4">
-                <div className="flex-1">
-                  <label className="text-gray-500 block mb-1">Jellyfin Add Time</label>
-                  <Input
-                    value={editedSong.JellyfinAddTime || ''}
-                    onChange={(e) => handleInputChange('JellyfinAddTime', e.target.value)}
-                    placeholder="例如: 2024-01-15T10:30:00.0000000Z"
-                  />
-                </div>
-                <div className="flex justify-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={autoFetchJellyfinAddTime}
-                    disabled={loading || !editedSong.JfId}
-                    className="w-auto h-9 px-3"
-                    title="根據 Jellyfin ID 自動獲取添加時間"
-                  >
-                    <Search className="h-4 w-4 mr-1" />
-                    自動獲取
-                  </Button>
-                </div>
-              </div>
-              <p className="text-xs text-gray-400 mt-1">ISO 格式時間戳，用於 Jellyfin 添加時間排序</p>
             </div>
           </div>
           {/* Other Fields */}

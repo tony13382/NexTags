@@ -44,8 +44,10 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [searchTitle, setSearchTitle] = useState('');
   const [selectedFolder, setSelectedFolder] = useState('');
+  const [selectedLanguage, setSelectedLanguage] = useState('');
   const [showFavorites, setShowFavorites] = useState(false);
   const [allowFolders, setAllowFolders] = useState<string[]>([]);
+  const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
   const [pagination, setPagination] = useState({
     current_page: 1,
     total_pages: 1,
@@ -63,6 +65,7 @@ export default function Home() {
 
       if (searchTitle) params.append('filterTitle', searchTitle);
       if (selectedFolder) params.append('filterFolder', selectedFolder);
+      if (selectedLanguage) params.append('filterLanguage', selectedLanguage);
       if (showFavorites) params.append('filterFavorite', 'true');
 
       const response = await fetch(`/api/audios/?${params}`);
@@ -70,6 +73,16 @@ export default function Home() {
 
       setSongs(data.audio_files);
       setAllowFolders(data.allow_folders);
+
+      // Extract unique languages from all songs
+      const languages = new Set<string>();
+      data.audio_files.forEach((song: Song) => {
+        if (song.Language && song.Language.trim()) {
+          languages.add(song.Language.trim());
+        }
+      });
+      setAvailableLanguages(Array.from(languages).sort());
+
       setPagination({
         current_page: data.pagination.current_page,
         total_pages: data.pagination.total_pages,
@@ -160,7 +173,7 @@ export default function Home() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <div className="md:col-span-2">
                 <Input
                   placeholder="搜尋歌曲標題..."
@@ -177,6 +190,16 @@ export default function Home() {
                 <option value="">所有資料夾</option>
                 {allowFolders.map(folder => (
                   <option key={folder} value={folder}>{folder}</option>
+                ))}
+              </select>
+              <select
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+              >
+                <option value="">所有語言</option>
+                {availableLanguages.map(language => (
+                  <option key={language} value={language}>{language}</option>
                 ))}
               </select>
               <Button

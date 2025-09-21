@@ -5,7 +5,6 @@
         "filter_tags" : [],
         "filter_language": "",
         "filter_favorites": "",
-        "jellyfin_playlist_id": ""
     },
     {
         "name": "所有中文音樂",
@@ -13,7 +12,6 @@
         "filter_tags" : [],
         "filter_language": "chi",
         "filter_favorites": false,
-        "jellyfin_playlist_id": "80815dda89090b6cc30e3094e541faf2"
     },
     {
         "name": "最愛純音樂",
@@ -21,7 +19,6 @@
         "filter_tags" : [],
         "filter_language": null,
         "filter_favorites": true,
-        "jellyfin_playlist_id": "8bf362326b6739cc3c884f5f25b41c3k"
     },
     {
         "name": "悲傷樂曲",
@@ -29,7 +26,6 @@
         "filter_tags" : ["悲傷"],
         "filter_language": null,
         "filter_favorites": false,
-        "jellyfin_playlist_id": "ae7c3625c006d2b41f2c14a7f20f55dk"
     },
     {
         "name": "（開車用）2000 年代英語樂曲",
@@ -37,6 +33,5 @@
         "filter_tags" : ["2000 年代流行曲","開車精選"],
         "filter_language": "eng",
         "filter_favorites": false,
-        "jellyfin_playlist_id": "5c186f8e26685acc46f3041a499fa53r"
     }
 ]

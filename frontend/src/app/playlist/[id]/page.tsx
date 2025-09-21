@@ -8,9 +8,7 @@ import { ArrowLeft, Download } from 'lucide-react';
 
 interface SongWithDate {
     file_path: string | null;
-    jellyfin_date_created: string | null;
     formatted_date: string;
-    jellyfin_id: string;
     song_name: string;
 }
 
@@ -259,16 +257,6 @@ export default function PlaylistDetailPage() {
             <div className="bg-white border rounded-2xl p-0 overflow-hidden">
                 <div className="p-4 font-bold">
                     <p>歌曲列表 ({playlistData.total_count} 首)
-                        {playlistData.filter_summary.sort_method === 'local_jellyfin_add_time' &&
-                            <span className="text-sm text-green-600 font-normal ml-2">
-                                ✓ 按本地 jellyfin_add_time 標籤排序 (新→舊)
-                            </span>
-                        }
-                        {playlistData.filter_summary.sort_method === 'jellyfin_date_created' &&
-                            <span className="text-sm text-blue-600 font-normal ml-2">
-                                ✓ 按 Jellyfin 加入時間排序 (新→舊)
-                            </span>
-                        }
                     </p>
                 </div>
                 <div>

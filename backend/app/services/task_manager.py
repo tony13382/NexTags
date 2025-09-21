@@ -149,10 +149,7 @@ class TaskManager:
         try:
             logger.info(f"開始執行任務: {task_id} (類型: {task_type})")
             
-            if task_type == "playlist_sync":
-                result = await self._execute_playlist_sync(task_id, task_data)
-            else:
-                raise ValueError(f"未知的任務類型: {task_type}")
+            raise ValueError(f"未知的任務類型: {task_type}")
             
             # 任務完成
             self.update_task_status(task_id, TaskStatus.COMPLETED, result=result, progress=100)
@@ -169,114 +166,6 @@ class TaskManager:
             if task_id in self.running_tasks:
                 del self.running_tasks[task_id]
     
-    async def _execute_playlist_sync(self, task_id: str, task_data: Dict[str, Any]) -> Dict[str, Any]:
-        """執行播放清單同步任務"""
-        from app.router.playlists import (
-            load_playlists, find_audio_files, filter_songs_by_playlist,
-            sort_songs_by_jellyfin_add_time, save_playlists
-        )
-        from app.dependencies.jellyfin_connetor import playlists as jellyfin_playlists
-        from app.dependencies.tags_cache import tags_cache
-        
-        playlist_index = task_data["playlist_index"]
-        
-        # 更新進度: 開始載入播放清單
-        self.update_task_status(task_id, TaskStatus.RUNNING, progress=10)
-        
-        # 載入播放清單
-        playlists_data = load_playlists()
-        if playlist_index >= len(playlists_data):
-            raise ValueError(f"播放清單索引 {playlist_index} 不存在")
-        
-        playlist = playlists_data[playlist_index]
-        jellyfin_playlist_id = playlist.get("jellyfin_playlist_id")
-        
-        if not jellyfin_playlist_id:
-            raise ValueError("此播放清單沒有設定 Jellyfin Playlist ID")
-        
-        # 更新進度: 搜尋音樂檔案
-        self.update_task_status(task_id, TaskStatus.RUNNING, progress=20)
-        
-        # 取得本地播放清單的歌曲
-        audio_files = find_audio_files(playlist['base_folder'])
-        filtered_songs = filter_songs_by_playlist(playlist, audio_files)
-        
-        if not filtered_songs:
-            return {
-                "message": f"播放清單 '{playlist['name']}' 沒有符合條件的歌曲",
-                "songs_found": 0,
-                "songs_added": 0
-            }
-        
-        # 更新進度: 排序歌曲
-        self.update_task_status(task_id, TaskStatus.RUNNING, progress=30)
-        
-        sorted_songs = sort_songs_by_jellyfin_add_time(filtered_songs)
-        
-        # 更新進度: 提取 Jellyfin ID
-        self.update_task_status(task_id, TaskStatus.RUNNING, progress=40)
-        
-        jellyfin_song_ids = []
-        for file_path in sorted_songs:
-            try:
-                tags = tags_cache.get_cached_tags_with_fallback(file_path)
-                jellyfin_id = tags.get('jfid', '').strip()
-                if jellyfin_id:
-                    jellyfin_song_ids.append(jellyfin_id)
-            except Exception as e:
-                logger.error(f"讀取檔案標籤失敗: {file_path} - {str(e)}")
-                continue
-        
-        if not jellyfin_song_ids:
-            raise ValueError(f"播放清單 '{playlist['name']}' 中沒有找到有效的 Jellyfin ID")
-        
-        # 更新進度: 檢查 Jellyfin 播放清單
-        self.update_task_status(task_id, TaskStatus.RUNNING, progress=50)
-        
-        existing_playlist = await jellyfin_playlists.get_playlist_by_id(jellyfin_playlist_id)
-        if not existing_playlist:
-            # 嘗試創建新的播放清單
-            new_playlist_id = await jellyfin_playlists.create_playlist(
-                name=playlist['name'],
-                description=f"智慧播放清單：{playlist['name']}",
-                song_ids=[]
-            )
-            
-            if new_playlist_id:
-                playlist['jellyfin_playlist_id'] = new_playlist_id
-                playlists_data[playlist_index] = playlist
-                save_playlists(playlists_data)
-                jellyfin_playlist_id = new_playlist_id
-                logger.info(f"成功創建新的 Jellyfin 播放清單，ID: {new_playlist_id}")
-            else:
-                raise ValueError(f"Jellyfin 中找不到 ID 為 {jellyfin_playlist_id} 的播放清單，且無法創建新的播放清單")
-        
-        # 更新進度: 清空播放清單
-        self.update_task_status(task_id, TaskStatus.RUNNING, progress=60)
-        
-        clear_success = await jellyfin_playlists.clear_playlist(jellyfin_playlist_id)
-        if not clear_success:
-            logger.warning(f"清空播放清單失敗，但繼續執行添加操作: {jellyfin_playlist_id}")
-        
-        # 更新進度: 添加歌曲到播放清單
-        self.update_task_status(task_id, TaskStatus.RUNNING, progress=80)
-        
-        success = await jellyfin_playlists.add_songs_to_playlist(jellyfin_playlist_id, jellyfin_song_ids)
-        
-        if not success:
-            raise ValueError(f"無法將歌曲新增到 Jellyfin 播放清單 {jellyfin_playlist_id}")
-        
-        # 更新進度: 完成
-        self.update_task_status(task_id, TaskStatus.RUNNING, progress=95)
-        
-        return {
-            "message": f"成功同步播放清單 '{playlist['name']}' 到 Jellyfin",
-            "jellyfin_playlist_id": jellyfin_playlist_id,
-            "songs_found": len(filtered_songs),
-            "songs_matched": len(jellyfin_song_ids),
-            "songs_added": len(jellyfin_song_ids),
-            "sort_method": "local_jellyfin_add_time"
-        }
 
 # 創建全局任務管理器實例
 task_manager = TaskManager()
