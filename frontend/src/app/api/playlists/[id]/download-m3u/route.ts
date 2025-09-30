@@ -31,7 +31,7 @@ export async function GET(
         const playlistName = songsData.playlist_name || `Playlist_${playlistIndex}`;
         let m3uContent = `#EXTM3U\n#EXTENC:UTF-8\n#PLAYLIST:${playlistName}\n\n`;
 
-        songsData.songs.forEach((song: any) => {
+        songsData.songs.forEach((song: { file_path?: string; song_name?: string }) => {
             if (song.file_path) {
                 // 添加歌曲資訊
                 const songName = song.song_name || song.file_path.split('/').pop() || 'Unknown';

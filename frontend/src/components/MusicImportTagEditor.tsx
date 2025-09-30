@@ -7,13 +7,13 @@ import { ArrowRight, Save, X } from 'lucide-react'
 
 interface TagEditorProps {
     filePath: string
-    initialTags: any
-    onSave: (tags: any) => void
+    initialTags: Record<string, unknown>
+    onSave: (tags: Record<string, unknown>) => void
     onCancel: () => void
 }
 
 export default function MusicImportTagEditor({ filePath, initialTags, onSave, onCancel }: TagEditorProps) {
-    const [tags, setTags] = useState<any>(initialTags || {})
+    const [tags, setTags] = useState<Record<string, unknown>>(initialTags || {})
     const [loading, setLoading] = useState(false)
     const [languages, setLanguages] = useState<Record<string, string>>({})
     const [availableTags, setAvailableTags] = useState<string[]>([])
@@ -53,7 +53,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
     }, [])
 
     const handleInputChange = (field: string, value: string | string[]) => {
-        setTags((prev: any) => ({
+        setTags((prev: Record<string, unknown>) => ({
             ...prev,
             [field]: value
         }))
@@ -146,7 +146,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">標題</label>
                         <Input
-                            value={tags.title || ''}
+                            value={String(tags.title || '')}
                             onChange={(e) => handleInputChange('title', e.target.value)}
                             placeholder="歌曲標題"
                         />
@@ -163,7 +163,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">排序標題</label>
                         <Input
-                            value={tags.titlesort || ''}
+                            value={String(tags.titlesort || '')}
                             onChange={(e) => handleInputChange('titlesort', e.target.value)}
                             placeholder="排序標題"
                         />
@@ -175,7 +175,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">歌手</label>
                         <Input
-                            value={tags.artist || ''}
+                            value={String(tags.artist || '')}
                             onChange={(e) => handleInputChange('artist', e.target.value)}
                             placeholder="歌手名稱"
                         />
@@ -192,7 +192,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">排序歌手</label>
                         <Input
-                            value={tags.artistsort || ''}
+                            value={String(tags.artistsort || '')}
                             onChange={(e) => handleInputChange('artistsort', e.target.value)}
                             placeholder="排序歌手"
                         />
@@ -204,7 +204,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">專輯</label>
                         <Input
-                            value={tags.album || ''}
+                            value={String(tags.album || '')}
                             onChange={(e) => handleInputChange('album', e.target.value)}
                             placeholder="專輯名稱"
                         />
@@ -221,7 +221,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">排序專輯</label>
                         <Input
-                            value={tags.albumsort || ''}
+                            value={String(tags.albumsort || '')}
                             onChange={(e) => handleInputChange('albumsort', e.target.value)}
                             placeholder="排序專輯"
                         />
@@ -233,7 +233,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">專輯歌手</label>
                         <Input
-                            value={tags.albumartist || ''}
+                            value={String(tags.albumartist || '')}
                             onChange={(e) => handleInputChange('albumartist', e.target.value)}
                             placeholder="專輯歌手名稱"
                         />
@@ -250,7 +250,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">排序專輯歌手</label>
                         <Input
-                            value={tags.albumartistsort || ''}
+                            value={String(tags.albumartistsort || '')}
                             onChange={(e) => handleInputChange('albumartistsort', e.target.value)}
                             placeholder="排序專輯歌手"
                         />
@@ -262,7 +262,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">作曲家</label>
                         <Input
-                            value={tags.composer || ''}
+                            value={String(tags.composer || '')}
                             onChange={(e) => handleInputChange('composer', e.target.value)}
                             placeholder="作曲家名稱"
                         />
@@ -279,7 +279,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">排序作曲家</label>
                         <Input
-                            value={tags.composersort || ''}
+                            value={String(tags.composersort || '')}
                             onChange={(e) => handleInputChange('composersort', e.target.value)}
                             placeholder="排序作曲家"
                         />
@@ -291,7 +291,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">軌道編號</label>
                         <Input
-                            value={tags.tracknumber || ''}
+                            value={String(tags.tracknumber || '')}
                             onChange={(e) => handleInputChange('tracknumber', e.target.value)}
                             placeholder="01"
                         />
@@ -299,7 +299,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">總軌道數</label>
                         <Input
-                            value={tags.totaltracks || ''}
+                            value={String(tags.totaltracks || '')}
                             onChange={(e) => handleInputChange('totaltracks', e.target.value)}
                             placeholder="12"
                         />
@@ -335,7 +335,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">語言</label>
                 <select
-                    value={tags.language || ''}
+                    value={String(tags.language || '')}
                     onChange={(e) => handleInputChange('language', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
@@ -352,7 +352,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
                 <textarea
-                    value={tags.comment || ''}
+                    value={String(tags.comment || '')}
                     onChange={(e) => handleInputChange('comment', e.target.value)}
                     placeholder="輸入備註..."
                     rows={3}
@@ -375,7 +375,7 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     </Button>
                 </div>
                 <textarea
-                    value={tags.lyrics || ''}
+                    value={String(tags.lyrics || '')}
                     onChange={(e) => handleInputChange('lyrics', e.target.value)}
                     placeholder="輸入歌詞..."
                     rows={8}

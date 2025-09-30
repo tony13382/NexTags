@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
     try {
-        // 在 Docker 容器內，使用服務名稱訪問同網絡的後端服務
-        const backendUrl = process.env.NODE_ENV === 'development'
-            ? 'http://backend:8000'
-            : 'http://localhost:6000';
+        // 使用環境變數或預設值來設定後端 URL
+        const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://backend:8000';
 
         const formData = await request.formData()
 

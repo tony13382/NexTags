@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 
 interface TaskInfo {
   task_id: string
@@ -8,8 +8,8 @@ interface TaskInfo {
   status: 'pending' | 'running' | 'completed' | 'failed'
   created_at: string
   updated_at: string
-  data: any
-  result: any
+  data: Record<string, unknown>
+  result: Record<string, unknown>
   error: string | null
   progress: number
 }
@@ -18,7 +18,7 @@ interface TaskStatusDialogProps {
   taskId: string | null
   isOpen: boolean
   onClose: () => void
-  onComplete?: (result: any) => void
+  onComplete?: (result: Record<string, unknown>) => void
 }
 
 export default function TaskStatusDialog({ 
@@ -31,7 +31,7 @@ export default function TaskStatusDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchTaskStatus = async () => {
+  const fetchTaskStatus = useCallback(async () => {
     if (!taskId) return
 
     try {
@@ -56,7 +56,7 @@ export default function TaskStatusDialog({
     } finally {
       setLoading(false)
     }
-  }
+  }, [taskId, onComplete])
 
   useEffect(() => {
     if (!isOpen || !taskId) {
@@ -78,7 +78,7 @@ export default function TaskStatusDialog({
     }, 2000)
 
     return () => clearInterval(pollInterval)
-  }, [isOpen, taskId, task?.status])
+  }, [isOpen, taskId, task?.status, fetchTaskStatus])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -166,18 +166,18 @@ export default function TaskStatusDialog({
                 <p><strong>任務 ID:</strong> {task.task_id}</p>
                 <p><strong>創建時間:</strong> {new Date(task.created_at).toLocaleString('zh-TW')}</p>
                 
-                {task.data?.playlist_name && (
-                  <p><strong>播放清單:</strong> {task.data.playlist_name}</p>
+                {(task.data as { playlist_name?: string })?.playlist_name && (
+                  <p><strong>播放清單:</strong> {String((task.data as { playlist_name?: string }).playlist_name)}</p>
                 )}
               </div>
 
               {/* 結果或錯誤信息 */}
               {task.status === 'completed' && task.result && (
                 <div className="bg-green-50 border border-green-200 rounded-md p-4">
-                  <p className="text-sm text-green-800 font-medium">✅ {task.result.message}</p>
-                  {task.result.songs_added && (
+                  <p className="text-sm text-green-800 font-medium">✅ {String((task.result as { message?: string })?.message || '任務完成')}</p>
+                  {(task.result as { songs_added?: number })?.songs_added && (
                     <p className="text-sm text-green-700 mt-1">
-                      成功同步 {task.result.songs_added} 首歌曲
+                      成功同步 {(task.result as { songs_added?: number }).songs_added} 首歌曲
                     </p>
                   )}
                 </div>

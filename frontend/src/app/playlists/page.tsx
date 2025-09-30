@@ -259,7 +259,7 @@ export default function PlaylistsPage() {
     }
   };
 
-  const handleGenerateM3U = async (index: number, playlist: SmartPlaylist) => {
+  const handleGenerateM3U = async (index: number, _playlist: SmartPlaylist) => {
     try {
       setError(null);
       setSuccessMessage(null);
@@ -436,7 +436,7 @@ export default function PlaylistsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {getSortedPlaylists().map((playlist, displayIndex) => {
+                  {getSortedPlaylists().map((playlist, _displayIndex) => {
                     // 尋找原始索引
                     const originalIndex = playlists.findIndex(p => p.name === playlist.name && p.base_folder === playlist.base_folder);
                     return (
@@ -583,7 +583,7 @@ export default function PlaylistsPage() {
         onComplete={(result) => {
           // 任務完成時刷新播放清單
           fetchPlaylists();
-          setSuccessMessage(result?.message || '同步完成');
+          setSuccessMessage(String((result as { message?: string })?.message || '同步完成'));
           setTimeout(() => setSuccessMessage(null), 5000);
         }}
       />

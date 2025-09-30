@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react'
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { X, ArrowRight, Save, Upload, Image as ImageIcon } from 'lucide-react';
@@ -269,10 +270,12 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
             >
               {coverImage ? (
                 <div className="relative w-full h-full">
-                  <img
+                  <Image
                     src={coverImage}
                     alt="Album Cover"
                     className="w-full h-full object-cover rounded-2xl"
+                    width={200}
+                    height={200}
                   />
                   <button
                     onClick={(e) => {

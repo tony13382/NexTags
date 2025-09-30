@@ -29,7 +29,7 @@ interface ImportSession {
     base_folder: string
     needs_conversion: boolean
     format: string
-    extracted_tags?: any
+    extracted_tags?: Record<string, unknown>
     suggested_filename?: string
     artist_name?: string
     album_name?: string
@@ -184,7 +184,7 @@ export default function NewMusicPage() {
     }
 
     // 更新標籤
-    const handleUpdateTags = async (tags: any) => {
+    const handleUpdateTags = async (tags: Record<string, unknown>) => {
         if (!currentSession) return
 
         try {
@@ -209,8 +209,8 @@ export default function NewMusicPage() {
             setShowTagEditor(false)
 
             // 從標籤中提取歌手和專輯名稱
-            const artistName = tags.artist || ''
-            const albumName = tags.album || ''
+            const artistName = String(tags.artist || '')
+            const albumName = String(tags.album || '')
             setArtistName(artistName)
             setAlbumName(albumName)
 
@@ -614,7 +614,7 @@ export default function NewMusicPage() {
                     <DialogHeader className="grid">
                         <DialogTitle>上傳歌手圖片</DialogTitle>
                         <DialogDescription>
-                            歌手 "{artistName}" 的資料夾需要封面圖片，請上傳歌手圖片 (JPG/PNG 格式)，檔案將保存為 artist.jpg
+                            歌手 &quot;{artistName}&quot; 的資料夾需要封面圖片，請上傳歌手圖片 (JPG/PNG 格式)，檔案將保存為 artist.jpg
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">

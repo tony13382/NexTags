@@ -4,10 +4,11 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://backend:8000'
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { endpoint: string[] } }
+    { params }: { params: Promise<{ endpoint: string[] }> }
 ) {
     try {
-        const endpoint = params.endpoint.join('/')
+        const resolvedParams = await params
+        const endpoint = resolvedParams.endpoint.join('/')
         const searchParams = new URL(request.url).searchParams
         const queryString = searchParams.toString()
 
@@ -38,21 +39,23 @@ export async function GET(
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { endpoint: string[] } }
+    { params }: { params: Promise<{ endpoint: string[] }> }
 ) {
     try {
-        const endpoint = params.endpoint.join('/')
+        const resolvedParams = await params
+        const endpoint = resolvedParams.endpoint.join('/')
 
-        let body: any
-        let headers: Record<string, string> = {}
+        let body: FormData | string
+        let headers: Record<string, string>
 
         // 檢查是否是 FormData (用於文件上傳)
         const contentType = request.headers.get('content-type')
         if (contentType?.includes('multipart/form-data')) {
             body = await request.formData()
+            headers = {}
         } else {
             body = JSON.stringify(await request.json())
-            headers['Content-Type'] = 'application/json'
+            headers = { 'Content-Type': 'application/json' }
         }
 
         const response = await fetch(`${BACKEND_URL}/music-import/${endpoint}`, {
@@ -79,10 +82,11 @@ export async function POST(
 
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { endpoint: string[] } }
+    { params }: { params: Promise<{ endpoint: string[] }> }
 ) {
     try {
-        const endpoint = params.endpoint.join('/')
+        const resolvedParams = await params
+        const endpoint = resolvedParams.endpoint.join('/')
         const body = await request.json()
 
         const response = await fetch(`${BACKEND_URL}/music-import/${endpoint}`, {
@@ -111,10 +115,11 @@ export async function PUT(
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { endpoint: string[] } }
+    { params }: { params: Promise<{ endpoint: string[] }> }
 ) {
     try {
-        const endpoint = params.endpoint.join('/')
+        const resolvedParams = await params
+        const endpoint = resolvedParams.endpoint.join('/')
         const body = await request.json()
 
         const response = await fetch(`${BACKEND_URL}/music-import/${endpoint}`, {

@@ -2,10 +2,8 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
     try {
-        // 在 Docker 容器內，使用容器名稱訪問後端
-        const backendUrl = process.env.NODE_ENV === 'development'
-            ? 'http://backend:8000'
-            : 'http://localhost:6000';
+        // 使用環境變數或預設值來設定後端 URL
+        const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://backend:8000';
 
         const response = await fetch(`${backendUrl}/cache/statistics`);
 

@@ -16,8 +16,9 @@ RUN uv sync --frozen --no-dev
 COPY . .
 
 # 創建非 root 用戶
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+RUN groupadd -r appuser && useradd -r -g appuser -m appuser
 RUN chown -R appuser:appuser /app
+RUN mkdir -p /home/appuser/.cache && chown -R appuser:appuser /home/appuser/.cache
 USER appuser
 
 EXPOSE 8000

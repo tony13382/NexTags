@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || 'http://backend:8000';
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
     try {
         // 轉發請求到後端
         const backendResponse = await fetch(`${BACKEND_URL}/playlists/generate-all-m3u`, {

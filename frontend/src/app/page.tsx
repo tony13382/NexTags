@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Music, Heart, Edit, Plus } from 'lucide-react';
+import { Search, Heart, Edit, Plus } from 'lucide-react';
 import TagEditor from '@/components/TagEditor';
 
 interface Song {
@@ -20,6 +20,10 @@ interface Song {
   SortTitle?: string;
   SortArtist?: string;
   SortAlbum?: string;
+  SortAlbumArtist?: string;
+  SortComposer?: string;
+  AlbumArtist?: string;
+  Composer?: string;
   Lyrics?: string;
   Comment?: string;
   JfId?: string;
