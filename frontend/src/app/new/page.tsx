@@ -244,11 +244,15 @@ export default function NewMusicPage() {
             // 更新當前會話狀態
             await refreshSessionStatus(fileId)
 
-            // 如果需要上傳歌手圖片，顯示對話框
-            if (data.needs_artist_image) {
+            // 檢查是否有任何歌手需要上傳圖片
+            const needsAnyArtistImage = data.artists?.some((artist: any) => artist.needs_artist_image) || false
+
+            if (needsAnyArtistImage) {
                 setShowArtistImageDialog(true)
+                // 可以在這裡處理顯示哪些歌手需要圖片的資訊
+                console.log('需要上傳圖片的歌手:', data.artists?.filter((artist: any) => artist.needs_artist_image))
             } else {
-                // 直接處理專輯 - 使用傳入的albumName參數
+                // 所有歌手都不需要圖片，直接處理專輯
                 await processAlbum(fileId, artistName, albumName)
             }
 

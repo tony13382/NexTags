@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from app.schemas.music_import import (
     FileUploadRequest, FileUploadResponse, ConvertFileRequest, ConvertFileResponse,
     ExtractTagsRequest, ExtractTagsResponse, UpdateTagsRequest, UpdateTagsResponse,
-    CheckArtistRequest, CheckArtistResponse, UploadArtistImageRequest, UploadArtistImageResponse,
+    CheckArtistRequest, CheckArtistResponse, ArtistCheckResult, UploadArtistImageRequest, UploadArtistImageResponse,
     ProcessAlbumRequest, ProcessAlbumResponse, FinalizeFileRequest, FinalizeFileResponse,
     ConfirmMoveRequest, ConfirmMoveResponse, ImportStatusRequest, ImportStatusResponse,
     ListPendingImportsResponse, DeleteImportRequest, DeleteImportResponse,
@@ -407,59 +407,94 @@ async def delete_import(request: DeleteImportRequest):
 
 @router.post("/check-artist", response_model=CheckArtistResponse)
 async def check_artist_folder(request: CheckArtistRequest):
-    """檢查歌手資料夾是否存在"""
+    """檢查歌手資料夾是否存在，支援多歌手"""
     try:
         if request.file_id not in import_sessions:
             raise HTTPException(status_code=404, detail="找不到檔案ID")
-        
+
         session = import_sessions[request.file_id]
         base_folder = session.get('base_folder')
-        
+
         if not base_folder:
             raise HTTPException(status_code=400, detail="找不到目標資料夾")
-        
-        # 建構歌手資料夾路徑 (/Music/basefolder/Music/Artist)
+
+        # 解析多歌手（反斜線分隔）
+        artist_names = [name.strip() for name in request.artist_name.split('\\') if name.strip()]
+
+        if not artist_names:
+            raise HTTPException(status_code=400, detail="歌手名稱不能為空")
+
         music_base_path = get_music_base_path()
-        artist_folder_path = os.path.join(music_base_path, base_folder, "Music", request.artist_name)
-        
-        artist_exists = os.path.exists(artist_folder_path)
-        needs_artist_image = False
-        
-        if artist_exists:
-            # 檢查是否有歌手圖片 (artist.jpg, artist.png 等)
-            artist_image_files = ['artist.jpg', 'artist.jpeg', 'artist.png']
-            has_artist_image = any(
-                os.path.exists(os.path.join(artist_folder_path, img_file))
-                for img_file in artist_image_files
-            )
-            needs_artist_image = not has_artist_image
-        else:
-            needs_artist_image = True
-        
-        # 更新匯入狀態
+        artist_results = []
+        overall_needs_artist_image = False
+
+        # 檢查每個歌手
+        for artist_name in artist_names:
+            # 建構歌手資料夾路徑 (/Music/basefolder/Music/Artist)
+            artist_folder_path = os.path.join(music_base_path, base_folder, "Music", artist_name)
+            artist_exists = os.path.exists(artist_folder_path)
+            needs_artist_image = False
+
+            if artist_exists:
+                # 檢查是否有歌手圖片 (artist.jpg, artist.png 等)
+                artist_image_files = ['artist.jpg', 'artist.jpeg', 'artist.png']
+                has_artist_image = any(
+                    os.path.exists(os.path.join(artist_folder_path, img_file))
+                    for img_file in artist_image_files
+                )
+                needs_artist_image = not has_artist_image
+            else:
+                needs_artist_image = True
+
+            # 如果任何一個歌手需要圖片，則整體需要
+            if needs_artist_image:
+                overall_needs_artist_image = True
+
+            artist_results.append(ArtistCheckResult(
+                artist_name=artist_name,
+                artist_exists=artist_exists,
+                artist_folder_path=artist_folder_path,
+                needs_artist_image=needs_artist_image
+            ))
+
+            logger.info(f"歌手資料夾檢查: {artist_name} - 存在: {artist_exists}, 需要圖片: {needs_artist_image}")
+
+        # 更新匯入狀態（使用第一個歌手作為主要歌手）
+        primary_artist = artist_results[0]
         update_import_status(
             request.file_id,
             ImportStatus.ARTIST_READY,
-            artist_name=request.artist_name,
-            artist_folder_path=artist_folder_path,
-            artist_exists=artist_exists,
-            needs_artist_image=needs_artist_image
+            artist_name=request.artist_name,  # 保存完整的歌手名稱（包含分隔符）
+            primary_artist_name=primary_artist.artist_name,
+            artist_folder_path=primary_artist.artist_folder_path,
+            artist_exists=primary_artist.artist_exists,
+            needs_artist_image=overall_needs_artist_image,
+            all_artists=artist_results
         )
-        
-        message = "歌手資料夾已存在" if artist_exists else "需要建立歌手資料夾"
-        if needs_artist_image:
-            message += "，需要上傳歌手圖片"
-        
-        logger.info(f"歌手資料夾檢查: {request.artist_name} - {message}")
-        
+
+        # 生成訊息
+        existing_count = sum(1 for result in artist_results if result.artist_exists)
+        total_count = len(artist_results)
+
+        if existing_count == total_count:
+            message = f"所有 {total_count} 個歌手資料夾都已存在"
+        elif existing_count == 0:
+            message = f"需要建立 {total_count} 個歌手資料夾"
+        else:
+            message = f"{existing_count}/{total_count} 個歌手資料夾已存在"
+
+        if overall_needs_artist_image:
+            missing_image_count = sum(1 for result in artist_results if result.needs_artist_image)
+            message += f"，需要為 {missing_image_count} 個歌手上傳圖片"
+
+        logger.info(f"多歌手檢查完成: {message}")
+
         return CheckArtistResponse(
             success=True,
-            artist_exists=artist_exists,
-            artist_folder_path=artist_folder_path,
-            needs_artist_image=needs_artist_image,
+            artists=artist_results,
             message=message
         )
-        
+
     except Exception as e:
         logger.error(f"檢查歌手資料夾失敗: {str(e)}")
         if request.file_id in import_sessions:
@@ -547,12 +582,28 @@ async def process_album_folder(request: ProcessAlbumRequest):
         if not os.path.exists(temp_path):
             raise HTTPException(status_code=404, detail="暫存檔案不存在")
         
-        # 建構專輯資料夾路徑 (/Music/basefolder/Music/Artist/Album)
+        # 處理多歌手情況
+        artist_names = [name.strip() for name in request.artist_name.split('\\') if name.strip()]
+        primary_artist = artist_names[0] if artist_names else request.artist_name
+
+        # 建構專輯資料夾路徑 (使用主要歌手: /Music/basefolder/Music/PrimaryArtist/Album)
         music_base_path = get_music_base_path()
-        album_folder_path = os.path.join(music_base_path, base_folder, "Music", request.artist_name, request.album_name)
-        
-        # 建立專輯資料夾
+        album_folder_path = os.path.join(music_base_path, base_folder, "Music", primary_artist, request.album_name)
+
+        # 建立主要歌手的專輯資料夾
         os.makedirs(album_folder_path, exist_ok=True)
+
+        # 為多歌手創建各自的資料夾（如果不存在）
+        created_artist_folders = []
+        for artist_name in artist_names:
+            artist_folder_path = os.path.join(music_base_path, base_folder, "Music", artist_name)
+            if not os.path.exists(artist_folder_path):
+                os.makedirs(artist_folder_path, exist_ok=True)
+                created_artist_folders.append(artist_name)
+                logger.info(f"建立歌手資料夾: {artist_folder_path}")
+
+        if created_artist_folders:
+            logger.info(f"為多歌手建立了資料夾: {created_artist_folders}")
         
         # 嘗試提取封面圖
         cover_extracted = False

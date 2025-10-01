@@ -63,11 +63,15 @@ class CheckArtistRequest(BaseModel):
     file_id: str
     artist_name: str
 
-class CheckArtistResponse(BaseModel):
-    success: bool
+class ArtistCheckResult(BaseModel):
+    artist_name: str
     artist_exists: bool
     artist_folder_path: str
     needs_artist_image: bool
+
+class CheckArtistResponse(BaseModel):
+    success: bool
+    artists: List[ArtistCheckResult]
     message: str
 
 class UploadArtistImageRequest(BaseModel):
