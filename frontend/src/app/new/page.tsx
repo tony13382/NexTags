@@ -38,6 +38,13 @@ interface ImportSession {
     errors?: string[]
 }
 
+interface ArtistCheckResult {
+    artist_name: string
+    artist_exists: boolean
+    artist_folder_path: string
+    needs_artist_image: boolean
+}
+
 interface BaseFolderOption {
     value: string
     label: string
@@ -245,12 +252,12 @@ export default function NewMusicPage() {
             await refreshSessionStatus(fileId)
 
             // 檢查是否有任何歌手需要上傳圖片
-            const needsAnyArtistImage = data.artists?.some((artist: any) => artist.needs_artist_image) || false
+            const needsAnyArtistImage = data.artists?.some((artist: ArtistCheckResult) => artist.needs_artist_image) || false
 
             if (needsAnyArtistImage) {
                 setShowArtistImageDialog(true)
                 // 可以在這裡處理顯示哪些歌手需要圖片的資訊
-                console.log('需要上傳圖片的歌手:', data.artists?.filter((artist: any) => artist.needs_artist_image))
+                console.log('需要上傳圖片的歌手:', data.artists?.filter((artist: ArtistCheckResult) => artist.needs_artist_image))
             } else {
                 // 所有歌手都不需要圖片，直接處理專輯
                 await processAlbum(fileId, artistName, albumName)

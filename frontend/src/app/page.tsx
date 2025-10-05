@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Heart, Edit, Plus } from 'lucide-react';
+import { Search, Heart, Edit, Plus, Volume2 } from 'lucide-react';
 import TagEditor from '@/components/TagEditor';
 
 interface Song {
@@ -58,6 +58,14 @@ export default function Home() {
     total_count: 0
   });
   const [editingSong, setEditingSong] = useState<Song | null>(null);
+  const [generatingBatchReplayGain, setGeneratingBatchReplayGain] = useState(false);
+  const [batchReplayGainStatus, setBatchReplayGainStatus] = useState<{
+    is_running: boolean;
+    total_files: number;
+    processed_files: number;
+    failed_files: number;
+    current_file: string;
+  } | null>(null);
 
   const fetchSongs = async (page = 1) => {
     setLoading(true);
@@ -152,6 +160,59 @@ export default function Home() {
     }
   };
 
+  const pollBatchReplayGainStatus = async () => {
+    try {
+      const response = await fetch('/api/audios/replaygain/batch/status');
+      const data = await response.json();
+
+      if (data.success && data.status) {
+        setBatchReplayGainStatus(data.status);
+
+        if (data.status.is_running) {
+          // 繼續輪詢
+          setTimeout(pollBatchReplayGainStatus, 2000); // 每 2 秒查詢一次
+        } else {
+          // 完成
+          setGeneratingBatchReplayGain(false);
+          if (data.status.total_files > 0) {
+            alert(`批量生成完成！\n總計: ${data.status.total_files} 個檔案\n成功: ${data.status.processed_files} 個\n失敗: ${data.status.failed_files} 個`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error polling status:', error);
+    }
+  };
+
+  const handleBatchGenerateReplayGain = async () => {
+    if (!confirm('確定要為所有歌曲生成 ReplayGain 嗎？這可能需要數小時。\n\n處理過程將在後台進行，您可以關閉此頁面，稍後再回來查看進度。')) {
+      return;
+    }
+
+    try {
+      setGeneratingBatchReplayGain(true);
+
+      const response = await fetch('/api/audios/replaygain/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // 開始輪詢狀態
+        pollBatchReplayGainStatus();
+      } else {
+        alert(`批量生成失敗: ${data.message}`);
+        setGeneratingBatchReplayGain(false);
+      }
+    } catch (error) {
+      console.error('Error generating batch ReplayGain:', error);
+      alert('批量生成 ReplayGain 時發生錯誤');
+      setGeneratingBatchReplayGain(false);
+    }
+  };
+
   return (
     <div className="mx-auto px-8 py-4">
       <div className="mb-8">
@@ -159,13 +220,53 @@ export default function Home() {
           <h1 className="text-2xl font-bold text-gray-900 mt-4 mb-6 flex items-center gap-2">
             歌曲管理
           </h1>
-          <Button
-            className="flex items-center gap-2 mt-4 mb-6"
-            onClick={() => window.location.href = '/new'}
-          >
-            <Plus className="h-4 w-4" />
-            新增歌曲
-          </Button>
+          <div className="flex gap-2 mt-4 mb-6">
+            <Button
+              className="flex items-center gap-2"
+              onClick={handleBatchGenerateReplayGain}
+              disabled={generatingBatchReplayGain}
+              variant="outline"
+            >
+              <Volume2 className="h-4 w-4" />
+              {generatingBatchReplayGain ? '生成中...' : '生成 ReplayGain'}
+            </Button>
+            <Button
+              className="flex items-center gap-2"
+              onClick={() => window.location.href = '/new'}
+            >
+              <Plus className="h-4 w-4" />
+              新增歌曲
+            </Button>
+          </div>
+
+          {/* ReplayGain 進度顯示 */}
+          {batchReplayGainStatus && batchReplayGainStatus.is_running && (
+            <Card className="mb-6 bg-blue-50 border-blue-200">
+              <CardContent className="pt-6">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium">ReplayGain 生成進度</span>
+                    <span>{batchReplayGainStatus.processed_files + batchReplayGainStatus.failed_files} / {batchReplayGainStatus.total_files}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div
+                      className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${((batchReplayGainStatus.processed_files + batchReplayGainStatus.failed_files) / batchReplayGainStatus.total_files) * 100}%`
+                      }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    <div>成功: {batchReplayGainStatus.processed_files} 個</div>
+                    <div>失敗: {batchReplayGainStatus.failed_files} 個</div>
+                    {batchReplayGainStatus.current_file && (
+                      <div className="mt-1 truncate">目前處理: {batchReplayGainStatus.current_file.split('/').pop()}</div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* 搜尋和篩選區域 */}

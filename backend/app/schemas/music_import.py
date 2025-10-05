@@ -136,3 +136,11 @@ class DeleteImportRequest(BaseModel):
 class DeleteImportResponse(BaseModel):
     success: bool
     message: str
+
+class GenerateReplayGainRequest(BaseModel):
+    file_id: str
+
+class GenerateReplayGainResponse(BaseModel):
+    success: bool
+    message: str
+    replaygain_applied: bool

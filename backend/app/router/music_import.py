@@ -15,12 +15,14 @@ from app.schemas.music_import import (
     ProcessAlbumRequest, ProcessAlbumResponse, FinalizeFileRequest, FinalizeFileResponse,
     ConfirmMoveRequest, ConfirmMoveResponse, ImportStatusRequest, ImportStatusResponse,
     ListPendingImportsResponse, DeleteImportRequest, DeleteImportResponse,
+    GenerateReplayGainRequest, GenerateReplayGainResponse,
     ImportStatus, AudioFormat
 )
 from app.dependencies.mp3tag_reader import read_audio_tags
 from app.dependencies.mp3tag_writer import write_tags
 from app.dependencies.utils.audio_converter import convert_to_flac
 from app.dependencies.utils.cover_art import save_cover_art, extract_cover_from_audio
+from app.dependencies.utils.replaygain import generate_replaygain
 from app.dependencies.logger import logger
 
 router = APIRouter(prefix="/music-import", tags=["music-import"])
@@ -740,3 +742,40 @@ async def confirm_file_move(request: ConfirmMoveRequest):
         if request.file_id in import_sessions:
             import_sessions[request.file_id]['errors'].append(f"檔案移動失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=f"檔案移動失敗: {str(e)}")
+
+@router.post("/generate-replaygain", response_model=GenerateReplayGainResponse)
+async def generate_replaygain_tags(request: GenerateReplayGainRequest):
+    """為音訊檔案生成 ReplayGain 標籤"""
+    try:
+        if request.file_id not in import_sessions:
+            raise HTTPException(status_code=404, detail="找不到檔案ID")
+
+        session = import_sessions[request.file_id]
+        temp_path = session.get('temp_path')
+
+        if not temp_path or not os.path.exists(temp_path):
+            raise HTTPException(status_code=404, detail="暫存檔案不存在")
+
+        # 呼叫 r128gain 生成 ReplayGain
+        success, message = generate_replaygain(temp_path)
+
+        if success:
+            # 更新匯入狀態
+            import_sessions[request.file_id]['replaygain_applied'] = True
+            logger.info(f"ReplayGain 生成成功: {temp_path}")
+
+            return GenerateReplayGainResponse(
+                success=True,
+                message=message,
+                replaygain_applied=True
+            )
+        else:
+            raise HTTPException(status_code=500, detail=message)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"ReplayGain 生成失敗: {str(e)}")
+        if request.file_id in import_sessions:
+            import_sessions[request.file_id]['errors'].append(f"ReplayGain 生成失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"ReplayGain 生成失敗: {str(e)}")

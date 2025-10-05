@@ -20,6 +20,6 @@ supported_languages:
   jpn: 日語
   fra: 法語
 allow_folders:
-  - 純音樂
-  - 人聲
-  - 民歌
+  - "A 純音樂"
+  - "B 人聲"
+  - "C 民歌"

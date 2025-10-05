@@ -1,8 +1,10 @@
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 from app.schemas.audios import AudioTagsRequest, AudioTagsResponse, AudioUpdateRequest, AudioUpdateResponse
 from app.dependencies.mp3tag_reader import read_audio_tags
 from app.dependencies.mp3tag_writer import write_tags
 from app.dependencies.tags_cache import tags_cache
+from app.dependencies.utils.replaygain import generate_replaygain
 import os
 import yaml
 import asyncio
@@ -451,6 +453,151 @@ async def get_audio_tags(request: AudioTagsRequest):
             path=request.path,
             folder=folder
         )
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"讀取標籤時發生錯誤: {str(e)}")
+
+class ReplayGainRequest(BaseModel):
+    path: str
+
+class ReplayGainResponse(BaseModel):
+    success: bool
+    message: str
+    path: str
+
+@router.post("/replaygain", response_model=ReplayGainResponse)
+async def generate_audio_replaygain(request: ReplayGainRequest):
+    """為音訊檔案生成 ReplayGain 標籤"""
+    try:
+        if not os.path.exists(request.path):
+            raise HTTPException(status_code=404, detail="檔案不存在")
+
+        if not os.path.isfile(request.path):
+            raise HTTPException(status_code=400, detail="路徑不是檔案")
+
+        # 呼叫 r128gain 生成 ReplayGain
+        success, message = generate_replaygain(request.path)
+
+        if success:
+            # 清除快取，讓下次讀取時可以看到新的 ReplayGain 標籤
+            tags_cache.remove_tags(request.path)
+
+            return ReplayGainResponse(
+                success=True,
+                message=message,
+                path=request.path
+            )
+        else:
+            return ReplayGainResponse(
+                success=False,
+                message=message,
+                path=request.path
+            )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成 ReplayGain 時發生錯誤: {str(e)}")
+
+class BatchReplayGainResponse(BaseModel):
+    success: bool
+    message: str
+    total_files: int
+    processed_files: int
+    failed_files: int
+
+# 全局變量存儲批量處理狀態
+_batch_replaygain_status = {
+    "is_running": False,
+    "total_files": 0,
+    "processed_files": 0,
+    "failed_files": 0,
+    "current_file": "",
+    "start_time": None
+}
+
+def _run_batch_replaygain_sync():
+    """同步執行批量 ReplayGain 生成（在背景執行）"""
+    from app.dependencies.logger import logger
+    global _batch_replaygain_status
+
+    try:
+        _batch_replaygain_status["is_running"] = True
+        _batch_replaygain_status["start_time"] = asyncio.get_event_loop().time() if asyncio.get_event_loop() else 0
+
+        config = load_config()
+        allow_folders = config.get('allow_folders', [])
+        music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
+
+        # 從快取中取得所有音檔路徑
+        cached_files = list(tags_cache._cache.keys())
+        all_audio_files = []
+
+        # 篩選出符合允許資料夾的檔案
+        for file_path in cached_files:
+            for folder_name in allow_folders:
+                folder_path = os.path.join(music_base_path, folder_name)
+                if file_path.startswith(folder_path):
+                    audio_extensions = {'.flac', '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.wma'}
+                    file_ext = os.path.splitext(file_path)[1].lower()
+                    if file_ext and file_ext in audio_extensions:
+                        all_audio_files.append(file_path)
+                    break
+
+        _batch_replaygain_status["total_files"] = len(all_audio_files)
+        _batch_replaygain_status["processed_files"] = 0
+        _batch_replaygain_status["failed_files"] = 0
+
+        logger.info(f"開始批量生成 ReplayGain，共 {len(all_audio_files)} 個檔案")
+
+        # 批量處理每個檔案
+        for i, file_path in enumerate(all_audio_files, 1):
+            try:
+                _batch_replaygain_status["current_file"] = file_path
+                logger.info(f"處理 [{i}/{len(all_audio_files)}]: {file_path}")
+                success, msg = generate_replaygain(file_path)
+                if success:
+                    _batch_replaygain_status["processed_files"] += 1
+                    logger.info(f"成功 [{i}/{len(all_audio_files)}]: {file_path}")
+                    tags_cache.remove_tags(file_path)
+                else:
+                    _batch_replaygain_status["failed_files"] += 1
+                    logger.error(f"失敗 [{i}/{len(all_audio_files)}]: {file_path} - {msg}")
+            except Exception as e:
+                _batch_replaygain_status["failed_files"] += 1
+                logger.error(f"異常 [{i}/{len(all_audio_files)}]: {file_path} - {str(e)}")
+
+        logger.info(f"批量生成完成：總計 {len(all_audio_files)}，成功 {_batch_replaygain_status['processed_files']}，失敗 {_batch_replaygain_status['failed_files']}")
+
+    except Exception as e:
+        logger.error(f"批量生成 ReplayGain 異常: {str(e)}")
+    finally:
+        _batch_replaygain_status["is_running"] = False
+        _batch_replaygain_status["current_file"] = ""
+
+@router.post("/replaygain/batch")
+async def generate_batch_replaygain():
+    """啟動批量生成 ReplayGain 標籤（後台執行）"""
+    global _batch_replaygain_status
+
+    if _batch_replaygain_status["is_running"]:
+        return {
+            "success": False,
+            "message": "批量生成已在進行中",
+            "status": _batch_replaygain_status
+        }
+
+    # 在背景執行批量處理
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, _run_batch_replaygain_sync)
+
+    return {
+        "success": True,
+        "message": "批量生成已啟動，請使用 /audios/replaygain/batch/status 查詢進度"
+    }
+
+@router.get("/replaygain/batch/status")
+async def get_batch_replaygain_status():
+    """查詢批量生成 ReplayGain 的進度"""
+    return {
+        "success": True,
+        "status": _batch_replaygain_status
+    }
