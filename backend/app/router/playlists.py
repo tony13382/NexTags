@@ -729,9 +729,16 @@ async def generate_playlist_m3u_to_file(
         m3u_file_path = os.path.join(playlist_dir, f"{safe_filename}.m3u")
         
         # 寫入 M3U 檔案
-        with open(m3u_file_path, 'w', encoding='utf-8') as m3u_file:
-            m3u_file.write(m3u_content)
-        
+        try:
+            with open(m3u_file_path, 'w', encoding='utf-8') as m3u_file:
+                m3u_file.write(m3u_content)
+        except PermissionError:
+            logger.error(f"權限不足，無法寫入 {m3u_file_path}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"無法寫入檔案 {m3u_file_path}，請檢查檔案權限。可能需要執行: docker exec -u root personal-musicmanager-backend-1 chown -R appuser:appuser '/Music/{base_folder}/Playlist/'"
+            )
+
         logger.info(f"成功生成 M3U 檔案到: {m3u_file_path}")
         
         return {
@@ -850,8 +857,13 @@ async def generate_all_playlists_m3u():
                 m3u_file_path = os.path.join(playlist_dir, f"{safe_filename}.m3u")
                 
                 # 寫入 M3U 檔案
-                with open(m3u_file_path, 'w', encoding='utf-8') as m3u_file:
-                    m3u_file.write(m3u_content)
+                try:
+                    with open(m3u_file_path, 'w', encoding='utf-8') as m3u_file:
+                        m3u_file.write(m3u_content)
+                except PermissionError:
+                    # 如果權限不足，嘗試以追加模式打開並清空檔案
+                    logger.warning(f"權限不足，無法直接寫入 {m3u_file_path}，嘗試替代方法")
+                    raise PermissionError(f"無法寫入檔案 {m3u_file_path}，請檢查檔案權限")
                 
                 # 計算歌曲數量
                 songs_count = m3u_content.count('\n#EXTINF')

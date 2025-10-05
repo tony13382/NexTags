@@ -26,5 +26,8 @@ handler.setFormatter(formatter)
 # logger 不支援 async function，所以不使用 async function
 logger = logging.getLogger("main")
 logger.setLevel(logging.DEBUG)
-logger.addHandler(handler)
-logger.addHandler(logging.StreamHandler())  # 控制台同步顯示
+
+# 避免重複添加 handler（模組重新載入時）
+if not logger.handlers:
+    logger.addHandler(handler)
+    logger.addHandler(logging.StreamHandler())  # 控制台同步顯示
