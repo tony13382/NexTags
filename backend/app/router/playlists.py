@@ -4,7 +4,7 @@ import glob
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Path as FastAPIPath, Query
+from fastapi import APIRouter, HTTPException, Path as FastAPIPath, Query, BackgroundTasks
 from fastapi.responses import Response
 from app.schemas.playlists import (
     SmartPlaylist,
@@ -24,6 +24,17 @@ router = APIRouter(prefix="/playlists", tags=["playlists"])
 
 # 支援的音訊檔案格式
 SUPPORTED_AUDIO_EXTENSIONS = ['.mp3', '.flac', '.m4a', '.ogg', '.wav']
+
+# 用於儲存批量生成任務狀態的全域變數
+_batch_task_status = {
+    "status": "idle",  # idle, running, completed, error
+    "progress": 0,
+    "total": 0,
+    "message": "",
+    "result": None,
+    "started_at": None,
+    "completed_at": None
+}
 
 def get_config_value(key: str, default: Any = None) -> Any:
     """從資料庫取得設定值"""
@@ -283,7 +294,10 @@ def sort_songs_by_title(songs: List[str]) -> List[str]:
         for i, song in enumerate(songs):
             try:
                 # 使用快取讀取檔案標籤
-                tags = tags_cache.get_cached_tags_with_fallback(song)
+                if redis_cache is None:
+                    tags = read_audio_tags(song)
+                else:
+                    tags = redis_cache.get_cached_tags_with_fallback(song)
 
                 # 優先使用 titlesort，其次使用 title，最後使用檔案名
                 sort_title = tags.get('titlesort', '') or tags.get('title', '') or os.path.basename(song)
@@ -853,17 +867,25 @@ async def download_playlist_m3u(
         raise HTTPException(status_code=500, detail=error_msg)
 
 
-@router.post("/generate-all-m3u")
-async def generate_all_playlists_m3u():
-    """批量生成所有播放清單的 M3U 檔案到檔案系統"""
+def _perform_batch_m3u_generation():
+    """執行批量生成 M3U 檔案的背景任務"""
+    global _batch_task_status
+
     try:
-        logger.info("開始批量生成所有播放清單的 M3U 檔案")
+        logger.info("背景任務：開始批量生成所有播放清單的 M3U 檔案")
+
+        _batch_task_status["status"] = "running"
+        _batch_task_status["message"] = "正在載入播放清單..."
 
         # 載入所有播放清單
         playlists_data = load_playlists()
 
         if not playlists_data:
-            return {
+            _batch_task_status["status"] = "completed"
+            _batch_task_status["progress"] = 0
+            _batch_task_status["total"] = 0
+            _batch_task_status["message"] = "沒有播放清單需要生成"
+            _batch_task_status["result"] = {
                 "success": True,
                 "message": "沒有播放清單需要生成",
                 "generated_files": [],
@@ -871,6 +893,11 @@ async def generate_all_playlists_m3u():
                 "success_count": 0,
                 "error_count": 0
             }
+            _batch_task_status["completed_at"] = datetime.now().isoformat()
+            return
+
+        _batch_task_status["total"] = len(playlists_data)
+        _batch_task_status["message"] = "正在清理舊的 M3U 檔案..."
 
         # 第一步：收集所有需要清理的 Playlist 目錄
         playlist_dirs = set()
@@ -885,7 +912,6 @@ async def generate_all_playlists_m3u():
         for playlist_dir in playlist_dirs:
             if os.path.exists(playlist_dir):
                 try:
-                    # 找到所有 .m3u 檔案
                     m3u_files = glob.glob(os.path.join(playlist_dir, "*.m3u"))
                     for m3u_file in m3u_files:
                         try:
@@ -904,24 +930,26 @@ async def generate_all_playlists_m3u():
         success_count = 0
         error_count = 0
         errors = []
-        
-        for playlist in playlists_data:
+
+        for idx, playlist in enumerate(playlists_data):
             try:
                 playlist_id = playlist.get('id')
                 playlist_name = playlist.get('name', f'playlist_{playlist_id}')
                 base_folder = playlist.get('base_folder', '')
 
+                _batch_task_status["progress"] = idx
+                _batch_task_status["message"] = f"正在生成播放清單 {idx + 1}/{len(playlists_data)}: {playlist_name}"
                 logger.info(f"正在生成播放清單 {playlist_id}: {playlist_name}")
-                
+
                 # 生成 M3U 內容（使用相對路徑）
                 m3u_content = generate_m3u_content(playlist, playlist_name, use_relative_paths=True)
-                
+
                 # 建立輸出目錄路徑：/Music/{BaseFolder}/Playlist/
                 playlist_dir = os.path.join("/Music", base_folder, "Playlist")
-                
+
                 # 確保目錄存在
                 os.makedirs(playlist_dir, exist_ok=True)
-                
+
                 # 清理播放清單名稱，作為檔案名稱
                 safe_filename = "".join(c for c in playlist_name if c.isalnum() or c in (' ', '-', '_', '・', '。', '，', '；', '：', '！', '？')).rstrip()
                 if not safe_filename:
@@ -935,7 +963,6 @@ async def generate_all_playlists_m3u():
                     with open(m3u_file_path, 'w', encoding='utf-8') as m3u_file:
                         m3u_file.write(m3u_content)
                 except PermissionError:
-                    # 如果權限不足，嘗試以追加模式打開並清空檔案
                     logger.warning(f"權限不足，無法直接寫入 {m3u_file_path}，嘗試替代方法")
                     raise PermissionError(f"無法寫入檔案 {m3u_file_path}，請檢查檔案權限")
 
@@ -949,7 +976,7 @@ async def generate_all_playlists_m3u():
                     "songs_count": songs_count,
                     "success": True
                 })
-                
+
                 success_count += 1
                 logger.info(f"成功生成播放清單 {playlist_id}: {playlist_name} -> {m3u_file_path}")
 
@@ -965,13 +992,15 @@ async def generate_all_playlists_m3u():
                     "success": False,
                     "error": str(e)
                 })
-                
+
                 errors.append(error_msg)
                 error_count += 1
-        
-        logger.info(f"批量生成完成：清理 {cleaned_files_count} 個舊檔案，成功生成 {success_count} 個，失敗 {error_count} 個")
 
-        return {
+        # 更新任務狀態為完成
+        _batch_task_status["status"] = "completed"
+        _batch_task_status["progress"] = len(playlists_data)
+        _batch_task_status["message"] = f"批量生成完成：清理 {cleaned_files_count} 個舊檔案，成功生成 {success_count} 個，失敗 {error_count} 個"
+        _batch_task_status["result"] = {
             "success": True,
             "message": f"批量生成完成：清理 {cleaned_files_count} 個舊檔案，成功生成 {success_count} 個，失敗 {error_count} 個",
             "generated_files": generated_files,
@@ -981,8 +1010,74 @@ async def generate_all_playlists_m3u():
             "cleaned_files_count": cleaned_files_count,
             "errors": errors if errors else None
         }
-        
+        _batch_task_status["completed_at"] = datetime.now().isoformat()
+
+        logger.info(f"背景任務完成：清理 {cleaned_files_count} 個舊檔案，成功生成 {success_count} 個，失敗 {error_count} 個")
+
     except Exception as e:
         error_msg = f"批量生成 M3U 檔案失敗: {str(e)}"
         logger.error(error_msg)
-        raise HTTPException(status_code=500, detail=error_msg)
+        _batch_task_status["status"] = "error"
+        _batch_task_status["message"] = error_msg
+        _batch_task_status["result"] = {
+            "success": False,
+            "message": error_msg,
+            "error": str(e)
+        }
+        _batch_task_status["completed_at"] = datetime.now().isoformat()
+
+
+@router.post("/generate-all-m3u")
+async def generate_all_playlists_m3u(background_tasks: BackgroundTasks):
+    """批量生成所有播放清單的 M3U 檔案到檔案系統（異步背景任務）"""
+    global _batch_task_status
+
+    # 檢查是否有任務正在執行
+    if _batch_task_status["status"] == "running":
+        return {
+            "success": False,
+            "message": "已經有批量生成任務正在執行中",
+            "status": _batch_task_status["status"],
+            "progress": _batch_task_status["progress"],
+            "total": _batch_task_status["total"],
+            "current_message": _batch_task_status["message"]
+        }
+
+    # 重置任務狀態
+    _batch_task_status = {
+        "status": "running",
+        "progress": 0,
+        "total": 0,
+        "message": "正在初始化批量生成任務...",
+        "result": None,
+        "started_at": datetime.now().isoformat(),
+        "completed_at": None
+    }
+
+    # 在背景執行批量生成任務
+    background_tasks.add_task(_perform_batch_m3u_generation)
+
+    logger.info("已啟動批量生成 M3U 檔案的背景任務")
+
+    return {
+        "success": True,
+        "message": "批量生成任務已啟動，請使用 /playlists/generate-all-m3u/status 查詢進度",
+        "status": "running",
+        "started_at": _batch_task_status["started_at"]
+    }
+
+
+@router.get("/generate-all-m3u/status")
+async def get_batch_generation_status():
+    """查詢批量生成 M3U 檔案的任務狀態"""
+    global _batch_task_status
+
+    return {
+        "status": _batch_task_status["status"],
+        "progress": _batch_task_status["progress"],
+        "total": _batch_task_status["total"],
+        "message": _batch_task_status["message"],
+        "result": _batch_task_status["result"],
+        "started_at": _batch_task_status["started_at"],
+        "completed_at": _batch_task_status["completed_at"]
+    }

@@ -287,6 +287,52 @@ export default function PlaylistsPage() {
     }
   };
 
+  const pollTaskStatus = async () => {
+    try {
+      const response = await fetch('/api/playlists/generate-all-m3u/status');
+      const statusData = await response.json();
+
+      if (statusData.status === 'running') {
+        // 更新進度訊息
+        const progressText = statusData.total > 0
+          ? `${statusData.message} (${statusData.progress}/${statusData.total})`
+          : statusData.message;
+        setSuccessMessage(`🔄 ${progressText}`);
+
+        // 繼續輪詢
+        setTimeout(pollTaskStatus, 1000);
+      } else if (statusData.status === 'completed') {
+        setGeneratingAll(false);
+
+        if (statusData.result) {
+          const { success_count, error_count, total_count } = statusData.result;
+          let message = `✅ 批量生成完成！總共 ${total_count} 個播放清單：成功 ${success_count} 個`;
+          if (error_count > 0) {
+            message += `，失敗 ${error_count} 個`;
+          }
+
+          setSuccessMessage(message);
+          setTimeout(() => setSuccessMessage(null), 8000);
+
+          // 如果有錯誤，在控制台記錄詳細信息
+          if (statusData.result.errors && statusData.result.errors.length > 0) {
+            console.error('批量生成錯誤:', statusData.result.errors);
+          }
+        }
+      } else if (statusData.status === 'error') {
+        setGeneratingAll(false);
+        setError(statusData.message || '批量生成 M3U 檔案失敗');
+      } else if (statusData.status === 'idle') {
+        // 如果狀態是 idle，可能是任務已經完成很久了
+        setGeneratingAll(false);
+      }
+    } catch (err) {
+      console.error('Error polling task status:', err);
+      // 繼續輪詢，即使發生錯誤
+      setTimeout(pollTaskStatus, 2000);
+    }
+  };
+
   const handleGenerateAllM3U = async () => {
     try {
       setError(null);
@@ -303,27 +349,17 @@ export default function PlaylistsPage() {
       const data = await response.json();
 
       if (data.success) {
-        const { success_count, error_count, total_count } = data;
-        let message = `批量生成完成！總共 ${total_count} 個播放清單：成功 ${success_count} 個`;
-        if (error_count > 0) {
-          message += `，失敗 ${error_count} 個`;
-        }
-        
-        setSuccessMessage(message);
-        setTimeout(() => setSuccessMessage(null), 8000);
-        
-        // 如果有錯誤，在控制台記錄詳細信息
-        if (data.errors && data.errors.length > 0) {
-          console.error('批量生成錯誤:', data.errors);
-        }
+        // 任務已啟動，開始輪詢狀態
+        setSuccessMessage('🚀 批量生成任務已啟動...');
+        setTimeout(pollTaskStatus, 1000);
       } else {
-        setError(data.message || '批量生成 M3U 檔案失敗');
+        setGeneratingAll(false);
+        setError(data.message || '啟動批量生成任務失敗');
       }
     } catch (err) {
+      setGeneratingAll(false);
       setError('網路錯誤，請稍後再試');
       console.error('Error generating all M3U files:', err);
-    } finally {
-      setGeneratingAll(false);
     }
   };
 
