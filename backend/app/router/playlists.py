@@ -16,7 +16,7 @@ from app.schemas.playlists import (
 )
 from app.dependencies.logger import logger
 from app.dependencies.mp3tag_reader import read_audio_tags
-from app.dependencies.tags_cache import tags_cache
+from app.dependencies.redis_cache import redis_cache
 import yaml
 
 router = APIRouter(prefix="/playlists", tags=["playlists"])
@@ -94,33 +94,31 @@ def save_playlists(playlists: List[Dict[str, Any]]):
 def find_audio_files(base_folder: str) -> List[str]:
     """搜尋指定資料夾中的音訊檔案"""
     audio_files = []
-    
+
     # 自動在 base_folder 前面加上 /Music/ 前綴（Docker 容器中的絕對路徑）
     full_path = os.path.join("/Music", base_folder)
-    
+
     if not os.path.exists(full_path):
         logger.warning(f"指定的基礎資料夾不存在: {full_path}")
         return audio_files
-    
+
     try:
-        # 從快取中取得所有音檔路徑
-        cached_files = tags_cache._cache.keys()
-        
-        # 篩選出符合基礎資料夾路徑的檔案
-        for file_path in cached_files:
-            if file_path.startswith(full_path):
+        # 遞迴搜尋資料夾中的所有音訊檔案
+        for root, _, files in os.walk(full_path):
+            for file in files:
                 # 檢查檔案副檔名是否在支援列表中
-                file_ext = os.path.splitext(file_path)[1].lower()
+                file_ext = os.path.splitext(file)[1].lower()
                 if file_ext in SUPPORTED_AUDIO_EXTENSIONS:
+                    file_path = os.path.join(root, file)
                     audio_files.append(file_path)
-        
-        # 去重並按檔案路徑排序，確保每次執行順序一致
-        audio_files = sorted(list(set(audio_files)))
-        logger.info(f"從快取中找到資料夾 {full_path} 中的 {len(audio_files)} 個音訊檔案")
-        
+
+        # 按檔案路徑排序，確保每次執行順序一致
+        audio_files = sorted(audio_files)
+        logger.info(f"在資料夾 {full_path} 中找到 {len(audio_files)} 個音訊檔案")
+
     except Exception as e:
         logger.error(f"搜尋音訊檔案失敗: {str(e)}")
-    
+
     return audio_files
 
 def filter_songs_by_playlist(playlist: Dict[str, Any], audio_files: List[str]) -> List[str]:
@@ -130,7 +128,10 @@ def filter_songs_by_playlist(playlist: Dict[str, Any], audio_files: List[str]) -
     for file_path in audio_files:
         try:
             # 使用快取讀取檔案標籤
-            tags = tags_cache.get_cached_tags_with_fallback(file_path)
+            if redis_cache is None:
+                tags = read_audio_tags(file_path)
+            else:
+                tags = redis_cache.get_cached_tags_with_fallback(file_path)
             
             # 檢查語言過濾條件
             if playlist.get('filter_language'):
@@ -518,7 +519,10 @@ async def get_playlist_songs(
         for file_path in sorted_songs:
             try:
                 # 使用快取讀取檔案標籤
-                tags = tags_cache.get_cached_tags_with_fallback(file_path)
+                if redis_cache is None:
+                    tags = read_audio_tags(file_path)
+                else:
+                    tags = redis_cache.get_cached_tags_with_fallback(file_path)
                 song_name = tags.get('title', '') or os.path.basename(file_path)
                 
                 # 使用檔案修改時間作為主要時間來源
@@ -647,7 +651,10 @@ def generate_m3u_content(playlist: Dict[str, Any], playlist_name: str, use_relat
     for file_path in sorted_songs:
         try:
             # 使用快取讀取檔案標籤
-            tags = tags_cache.get_cached_tags_with_fallback(file_path)
+            if redis_cache is None:
+                tags = read_audio_tags(file_path)
+            else:
+                tags = redis_cache.get_cached_tags_with_fallback(file_path)
             title = tags.get('title', '')
             artist = tags.get('artist', '')
             

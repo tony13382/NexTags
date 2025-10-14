@@ -15,4 +15,5 @@ dependencies = [
     "httpx>=0.24.0",
     "python-multipart>=0.0.20",
     "r128gain>=1.0.7",
+    "redis>=5.0.0",
 ]

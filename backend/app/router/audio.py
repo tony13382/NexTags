@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from app.schemas.audios import AudioTagsRequest, AudioTagsResponse, AudioUpdateRequest, AudioUpdateResponse
 from app.dependencies.mp3tag_reader import read_audio_tags
 from app.dependencies.mp3tag_writer import write_tags
-from app.dependencies.tags_cache import tags_cache
+from app.dependencies.redis_cache import redis_cache
 from app.dependencies.utils.replaygain import generate_replaygain
 import os
 import yaml
@@ -72,7 +72,10 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
     """同步提取單個音訊檔案的詳細資訊"""
     try:
         # 使用快取讀取標籤
-        tags = tags_cache.get_cached_tags_with_fallback(file_path)
+        if redis_cache is None:
+            tags = read_audio_tags(file_path)
+        else:
+            tags = redis_cache.get_cached_tags_with_fallback(file_path)
         
         # 取得檔案修改時間
         modification_time = os.path.getmtime(file_path) if os.path.exists(file_path) else 0
@@ -255,23 +258,15 @@ async def get_audios(
         allow_folders = config.get('allow_folders', [])
         
         music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
-        
+
         # 準備所有要掃描的資料夾路徑
-        # 從快取中取得所有音檔路徑
-        cached_files = tags_cache._cache.keys()
-        all_audio_files = []
-        
-        # 篩選出符合允許資料夾的檔案
-        for file_path in cached_files:
-            for folder_name in allow_folders:
-                folder_path = os.path.join(music_base_path, folder_name)
-                if file_path.startswith(folder_path):
-                    # 檢查檔案副檔名是否在支援列表中
-                    audio_extensions = {'.flac', '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.wma'}
-                    file_ext = os.path.splitext(file_path)[1].lower()
-                    if file_ext and file_ext in audio_extensions:
-                        all_audio_files.append(file_path)
-                    break  # 找到匹配的資料夾後跳出內層迴圈
+        folder_paths = []
+        for folder_name in allow_folders:
+            folder_path = os.path.join(music_base_path, folder_name)
+            folder_paths.append(folder_path)
+
+        # 併發掃描所有資料夾
+        all_audio_files = await scan_multiple_folders_concurrent(folder_paths)
         
         # 檢查是否需要過濾（有任何過濾參數或需要詳細資訊）
         has_filters = filterTitle or filterFolder or filterFavorite or filterLanguage
@@ -395,7 +390,8 @@ async def update_audio_tags(request: AudioUpdateRequest):
             )
         
         # 更新完標籤後，從快取中移除舊的標籤，讓下次讀取時重新載入
-        tags_cache.remove_tags(request.path)
+        if redis_cache is not None:
+            redis_cache.remove_tags(request.path)
         
         return AudioUpdateResponse(
             success=True,
@@ -480,7 +476,8 @@ async def generate_audio_replaygain(request: ReplayGainRequest):
 
         if success:
             # 清除快取，讓下次讀取時可以看到新的 ReplayGain 標籤
-            tags_cache.remove_tags(request.path)
+            if redis_cache is not None:
+                redis_cache.remove_tags(request.path)
 
             return ReplayGainResponse(
                 success=True,
@@ -527,20 +524,13 @@ def _run_batch_replaygain_sync():
         allow_folders = config.get('allow_folders', [])
         music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
 
-        # 從快取中取得所有音檔路徑
-        cached_files = list(tags_cache._cache.keys())
+        # 準備所有要掃描的資料夾路徑並同步掃描
         all_audio_files = []
-
-        # 篩選出符合允許資料夾的檔案
-        for file_path in cached_files:
-            for folder_name in allow_folders:
-                folder_path = os.path.join(music_base_path, folder_name)
-                if file_path.startswith(folder_path):
-                    audio_extensions = {'.flac', '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.wma'}
-                    file_ext = os.path.splitext(file_path)[1].lower()
-                    if file_ext and file_ext in audio_extensions:
-                        all_audio_files.append(file_path)
-                    break
+        for folder_name in allow_folders:
+            folder_path = os.path.join(music_base_path, folder_name)
+            if os.path.exists(folder_path) and os.path.isdir(folder_path):
+                audio_files = _scan_folder_sync(folder_path)
+                all_audio_files.extend(audio_files)
 
         _batch_replaygain_status["total_files"] = len(all_audio_files)
         _batch_replaygain_status["processed_files"] = 0
@@ -557,7 +547,8 @@ def _run_batch_replaygain_sync():
                 if success:
                     _batch_replaygain_status["processed_files"] += 1
                     logger.info(f"成功 [{i}/{len(all_audio_files)}]: {file_path}")
-                    tags_cache.remove_tags(file_path)
+                    if redis_cache is not None:
+                        redis_cache.remove_tags(file_path)
                 else:
                     _batch_replaygain_status["failed_files"] += 1
                     logger.error(f"失敗 [{i}/{len(all_audio_files)}]: {file_path} - {msg}")

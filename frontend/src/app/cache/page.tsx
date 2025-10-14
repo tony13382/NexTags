@@ -10,12 +10,16 @@ interface CacheStatistics {
     };
     cached_files: {
         total: number;
-        by_folder: Record<string, number>;
+        by_folder?: Record<string, number>;
     };
     cache_info: {
-        cache_file_exists: boolean;
-        cache_file_path: string;
-        cache_file_size_bytes: number;
+        cache_type: string;
+        cache_file_exists?: boolean;
+        cache_file_path?: string;
+        cache_file_size_bytes?: number;
+        memory_used_bytes?: number;
+        memory_used_human?: string;
+        redis_version?: string;
     };
     folders: string[];
 }
@@ -116,20 +120,55 @@ export default function CachePage() {
                     {/* 快取數據 */}
                     <div>
                         <h2 className="text-xl font-semibold mb-4">快取數據</h2>
-                        <div>
-                            <div className="grid grid-cols-4 gap-8">
-                                {statistics.folders.map((folder) => (
-                                    <div key={folder} className="bg-white border rounded-lg p-6 text-left">
-                                        <div className="text-gray-600 mb-2">{folder}</div>
-                                        <div className="flex items-end text-3xl font-bold text-gray-900">
-                                            <span className="flex-1">
-                                                {statistics.cached_files.by_folder[folder] || 0}
-                                            </span>
-                                            <span className="text-base">首</span>
+                        <div className="space-y-4">
+                            {/* 快取類型和資訊 */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="font-semibold">快取類型:</span>
+                                    <span className="px-2 py-1 bg-blue-600 text-white rounded text-sm">
+                                        {statistics.cache_info.cache_type || 'Unknown'}
+                                    </span>
+                                </div>
+                                {statistics.cache_info.cache_type === 'Redis' && (
+                                    <div className="grid grid-cols-3 gap-4 mt-3">
+                                        <div>
+                                            <div className="text-sm text-gray-600">Redis 版本</div>
+                                            <div className="font-semibold">{statistics.cache_info.redis_version}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-sm text-gray-600">記憶體使用</div>
+                                            <div className="font-semibold">{statistics.cache_info.memory_used_human}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-sm text-gray-600">快取檔案數</div>
+                                            <div className="font-semibold">{statistics.cached_files.total}</div>
                                         </div>
                                     </div>
-                                ))}
+                                )}
+                                {statistics.cache_info.cache_file_exists && (
+                                    <div className="mt-3 text-sm text-gray-600">
+                                        <div>快取檔案: {statistics.cache_info.cache_file_path}</div>
+                                        <div>檔案大小: {(statistics.cache_info.cache_file_size_bytes! / 1024 / 1024).toFixed(2)} MB</div>
+                                    </div>
+                                )}
                             </div>
+
+                            {/* 各資料夾快取數據 */}
+                            {statistics.cached_files.by_folder && (
+                                <div className="grid grid-cols-4 gap-8">
+                                    {statistics.folders.map((folder) => (
+                                        <div key={folder} className="bg-white border rounded-lg p-6 text-left">
+                                            <div className="text-gray-600 mb-2">{folder}</div>
+                                            <div className="flex items-end text-3xl font-bold text-gray-900">
+                                                <span className="flex-1">
+                                                    {statistics.cached_files.by_folder![folder] || 0}
+                                                </span>
+                                                <span className="text-base">首</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

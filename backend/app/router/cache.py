@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from app.dependencies.tags_cache import tags_cache
+from app.dependencies.redis_cache import redis_cache
 from app.dependencies.logger import logger
 import os
 import yaml
@@ -74,9 +74,13 @@ async def rebuild_cache():
         all_audio_files = await scan_multiple_folders_concurrent(folder_paths)
         
         logger.info(f"找到 {len(all_audio_files)} 個音訊檔案，開始重建快取")
-        
+
+        # 檢查 Redis 是否可用
+        if redis_cache is None:
+            raise HTTPException(status_code=503, detail="Redis 快取服務無法使用")
+
         # 重建快取
-        result = tags_cache.rebuild_cache(all_audio_files)
+        result = redis_cache.rebuild_cache(all_audio_files)
         
         logger.info(f"快取重建完成，共處理 {result['total_files']} 個檔案")
         
@@ -99,7 +103,10 @@ async def rebuild_cache():
 async def clear_cache():
     """清空標籤快取"""
     try:
-        tags_cache.clear_cache()
+        if redis_cache is None:
+            raise HTTPException(status_code=503, detail="Redis 快取服務無法使用")
+
+        redis_cache.clear_cache()
         return {
             "success": True,
             "message": "快取已清空"
@@ -112,21 +119,21 @@ async def clear_cache():
 async def get_cache_status():
     """獲取快取狀態"""
     try:
-        cache_file_exists = os.path.exists(tags_cache.cache_file_path)
-        cache_size = len(tags_cache._cache)
-        
-        cache_file_size = 0
-        if cache_file_exists:
-            try:
-                cache_file_size = os.path.getsize(tags_cache.cache_file_path)
-            except:
-                pass
-        
+        if redis_cache is None:
+            return {
+                "cache_available": False,
+                "error": "Redis 快取服務無法使用"
+            }
+
+        cache_info = redis_cache.get_cache_info()
+
         return {
-            "cache_file_exists": cache_file_exists,
-            "cache_file_path": tags_cache.cache_file_path,
-            "cached_files_count": cache_size,
-            "cache_file_size_bytes": cache_file_size
+            "cache_available": True,
+            "cache_type": "Redis",
+            "cached_files_count": cache_info['cached_files_count'],
+            "memory_used_bytes": cache_info['memory_used_bytes'],
+            "memory_used_human": cache_info['memory_used_human'],
+            "redis_version": cache_info['redis_version']
         }
     except Exception as e:
         logger.error(f"獲取快取狀態時發生錯誤: {str(e)}")
@@ -136,18 +143,23 @@ async def get_cache_status():
 async def get_cache_statistics():
     """獲取快取統計資訊，包含實際檔案和快取數據的詳細分析"""
     try:
+        if redis_cache is None:
+            raise HTTPException(status_code=503, detail="Redis 快取服務無法使用")
+
         # 載入設定檔
         config = load_config()
         allow_folders = config.get('allow_folders', [])
-        
+
         music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
-        
+
         # 獲取實際檔案統計
         actual_files_stats = {}
         total_actual_files = 0
-        
+        folder_paths = {}
+
         for folder_name in allow_folders:
             folder_path = os.path.join(music_base_path, folder_name)
+            folder_paths[folder_name] = folder_path
             if os.path.exists(folder_path) and os.path.isdir(folder_path):
                 audio_files = await get_audio_files_in_folder(folder_path)
                 count = len(audio_files)
@@ -155,49 +167,31 @@ async def get_cache_statistics():
                 total_actual_files += count
             else:
                 actual_files_stats[folder_name] = 0
-        
-        # 獲取快取檔案統計
-        cached_files_stats = {}
-        total_cached_files = 0
-        
-        for folder_name in allow_folders:
-            folder_path = os.path.join(music_base_path, folder_name)
-            count = 0
-            
-            # 計算快取中該資料夾的檔案數量
-            for cached_file_path in tags_cache._cache.keys():
-                if cached_file_path.startswith(folder_path):
-                    count += 1
-            
-            cached_files_stats[folder_name] = count
-            total_cached_files += count
-        
-        # 快取檔案基本資訊
-        cache_file_exists = os.path.exists(tags_cache.cache_file_path)
-        cache_file_size = 0
-        if cache_file_exists:
-            try:
-                cache_file_size = os.path.getsize(tags_cache.cache_file_path)
-            except:
-                pass
-        
+
+        # 獲取快取資訊
+        cache_info = redis_cache.get_cache_info()
+
+        # 獲取各資料夾的快取統計
+        cached_files_stats = redis_cache.get_cache_stats_by_folders(folder_paths)
+
         return {
             "actual_files": {
                 "total": total_actual_files,
                 "by_folder": actual_files_stats
             },
             "cached_files": {
-                "total": total_cached_files,
+                "total": cache_info['cached_files_count'],
                 "by_folder": cached_files_stats
             },
             "cache_info": {
-                "cache_file_exists": cache_file_exists,
-                "cache_file_path": tags_cache.cache_file_path,
-                "cache_file_size_bytes": cache_file_size
+                "cache_type": "Redis",
+                "memory_used_bytes": cache_info['memory_used_bytes'],
+                "memory_used_human": cache_info['memory_used_human'],
+                "redis_version": cache_info['redis_version']
             },
             "folders": allow_folders
         }
-        
+
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="config.yaml 檔案不存在")
     except Exception as e:
