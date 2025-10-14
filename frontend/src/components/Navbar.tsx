@@ -41,6 +41,15 @@ export default function Navbar() {
             >
               快取管理
             </Link>
+            <Link
+              href="/settings"
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === '/settings'
+                ? 'bg-gray-600 text-white'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                }`}
+            >
+              系統設定
+            </Link>
           </div>
         </div>
       </div>

@@ -102,12 +102,10 @@ async def upload_music_file(
             )
         
         # 驗證 base_folder
-        import yaml
-        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config.yaml')
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        
-        if base_folder not in config.get('allow_folders', []):
+        from app.router.config import get_config
+        allow_folders = get_config('allow_folders') or []
+
+        if base_folder not in allow_folders:
             raise HTTPException(status_code=400, detail=f"不支援的目標資料夾: {base_folder}")
         
         # 產生檔案ID和暫存路徑

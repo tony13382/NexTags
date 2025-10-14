@@ -5,20 +5,14 @@ from app.dependencies.mp3tag_reader import read_audio_tags
 from app.dependencies.mp3tag_writer import write_tags
 from app.dependencies.redis_cache import redis_cache
 from app.dependencies.utils.replaygain import generate_replaygain
+from app.router.config import get_config
 import os
-import yaml
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 import math
 
 router = APIRouter(prefix="/audios", tags=["tools"])
-
-def load_config():
-    """載入 config.yaml 設定檔"""
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config.yaml')
-    with open(config_path, 'r', encoding='utf-8') as file:
-        return yaml.safe_load(file)
 
 def _scan_folder_sync(folder_path: str) -> List[str]:
     """同步掃描單一資料夾中的音訊檔案"""
@@ -254,8 +248,7 @@ async def get_audios(
 ):
     """獲取允許資料夾中的所有音訊檔案路徑（併發優化版本，支援分頁）"""
     try:
-        config = load_config()
-        allow_folders = config.get('allow_folders', [])
+        allow_folders = get_config('allow_folders') or []
         
         music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
 
@@ -405,8 +398,7 @@ async def update_audio_tags(request: AudioUpdateRequest):
 def get_folder_from_path(file_path: str) -> str:
     """根據檔案路徑判斷屬於哪個 allow_folder"""
     try:
-        config = load_config()
-        allow_folders = config.get('allow_folders', [])
+        allow_folders = get_config('allow_folders') or []
         
         music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
         
@@ -520,8 +512,7 @@ def _run_batch_replaygain_sync():
         _batch_replaygain_status["is_running"] = True
         _batch_replaygain_status["start_time"] = asyncio.get_event_loop().time() if asyncio.get_event_loop() else 0
 
-        config = load_config()
-        allow_folders = config.get('allow_folders', [])
+        allow_folders = get_config('allow_folders') or []
         music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
 
         # 準備所有要掃描的資料夾路徑並同步掃描

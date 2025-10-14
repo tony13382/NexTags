@@ -1,25 +1,15 @@
 from fastapi import APIRouter, HTTPException
-import os
-import yaml
 from typing import List
+from app.router.config import get_config
 
 router = APIRouter(prefix="/tags", tags=["tags"])
-
-def load_config():
-    """載入 config.yaml 設定檔"""
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config.yaml')
-    with open(config_path, 'r', encoding='utf-8') as file:
-        return yaml.safe_load(file)
 
 @router.get("/tags")
 async def get_supported_tags() -> List[str]:
     """獲取支援的標籤清單"""
     try:
-        config = load_config()
-        supported_tags = config.get('supported_tags', [])
-        return supported_tags
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="config.yaml 檔案不存在")
+        supported_tags = get_config('supported_tags')
+        return supported_tags if supported_tags else []
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"讀取標籤清單時發生錯誤: {str(e)}")
 
@@ -27,12 +17,8 @@ async def get_supported_tags() -> List[str]:
 async def get_supported_languages() -> dict:
     """獲取支援的語言清單"""
     try:
-        config = load_config()
-        supported_languages = config.get('supported_languages', {})
-        # 回傳完整的語言對應表
-        return supported_languages
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="config.yaml 檔案不存在")
+        supported_languages = get_config('supported_languages')
+        return supported_languages if supported_languages else {}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"讀取語言清單時發生錯誤: {str(e)}")
 
@@ -40,10 +26,7 @@ async def get_supported_languages() -> dict:
 async def get_base_folders() -> List[str]:
     """獲取允許的基礎資料夾清單"""
     try:
-        config = load_config()
-        allow_folders = config.get('allow_folders', [])
-        return allow_folders
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="config.yaml 檔案不存在")
+        allow_folders = get_config('allow_folders')
+        return allow_folders if allow_folders else []
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"讀取資料夾清單時發生錯誤: {str(e)}")

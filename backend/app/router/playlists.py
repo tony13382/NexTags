@@ -17,79 +17,121 @@ from app.schemas.playlists import (
 from app.dependencies.logger import logger
 from app.dependencies.mp3tag_reader import read_audio_tags
 from app.dependencies.redis_cache import redis_cache
-import yaml
+from app.dependencies.database import db
+from app.router.config import get_config
 
 router = APIRouter(prefix="/playlists", tags=["playlists"])
-
-# 播放清單檔案路徑
-SMART_PLAYLIST_FILE = "app/data/smart_playlist.json"
-SMART_PLAYLIST_EXAMPLE_FILE = "app/data/smart_playlist.example.json"
-CONFIG_FILE = "config.yaml"
 
 # 支援的音訊檔案格式
 SUPPORTED_AUDIO_EXTENSIONS = ['.mp3', '.flac', '.m4a', '.ogg', '.wav']
 
-def load_config() -> Dict[str, Any]:
-    """載入配置檔案"""
+def get_config_value(key: str, default: Any = None) -> Any:
+    """從資料庫取得設定值"""
     try:
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as file:
-            return yaml.safe_load(file)
+        value = get_config(key)
+        return value if value is not None else default
     except Exception as e:
-        logger.error(f"載入配置檔案失敗: {str(e)}")
-        return {
-            "supported_tags": [],
-            "supported_languages": {},
-            "allow_folders": []
-        }
+        logger.error(f"讀取設定 {key} 失敗: {str(e)}")
+        return default
 
-def ensure_playlist_file_exists():
-    """確保播放清單檔案存在，如果不存在則創建"""
-    if not os.path.exists(SMART_PLAYLIST_FILE):
-        try:
-            # 確保目錄存在
-            os.makedirs(os.path.dirname(SMART_PLAYLIST_FILE), exist_ok=True)
-            
-            # 嘗試從範例檔案複製
-            if os.path.exists(SMART_PLAYLIST_EXAMPLE_FILE):
-                with open(SMART_PLAYLIST_EXAMPLE_FILE, 'r', encoding='utf-8') as example_file:
-                    example_data = json.load(example_file)
-                    
-                with open(SMART_PLAYLIST_FILE, 'w', encoding='utf-8') as playlist_file:
-                    json.dump(example_data, playlist_file, ensure_ascii=False, indent=2)
-                    
-                logger.info(f"從範例檔案建立播放清單檔案: {SMART_PLAYLIST_FILE}")
-            else:
-                # 創建空的播放清單檔案
-                with open(SMART_PLAYLIST_FILE, 'w', encoding='utf-8') as playlist_file:
-                    json.dump([], playlist_file, ensure_ascii=False, indent=2)
-                    
-                logger.info(f"建立空的播放清單檔案: {SMART_PLAYLIST_FILE}")
-                
-        except Exception as e:
-            logger.error(f"建立播放清單檔案失敗: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"無法建立播放清單檔案: {str(e)}")
+def load_config() -> Dict[str, Any]:
+    """載入配置（從資料庫）"""
+    return {
+        "supported_tags": get_config_value('supported_tags', []),
+        "supported_languages": get_config_value('supported_languages', {}),
+        "allow_folders": get_config_value('allow_folders', [])
+    }
 
 def load_playlists() -> List[Dict[str, Any]]:
-    """載入播放清單"""
-    ensure_playlist_file_exists()
-    
+    """從資料庫載入播放清單"""
+    if db is None:
+        raise HTTPException(status_code=503, detail="資料庫服務無法使用")
+
     try:
-        with open(SMART_PLAYLIST_FILE, 'r', encoding='utf-8') as file:
-            playlists = json.load(file)
-            return playlists if isinstance(playlists, list) else []
+        with db.get_connection() as conn:
+            with db.get_cursor(conn) as cur:
+                cur.execute("""
+                    SELECT id, name, base_folder, filter_language, filter_tags, sort_by,
+                           created_at, updated_at
+                    FROM SmartPlaylists
+                    ORDER BY id
+                """)
+                rows = cur.fetchall()
+
+                playlists = []
+                for row in rows:
+                    playlist = dict(row)
+                    # 將時間戳轉換為字串
+                    if playlist.get('created_at'):
+                        playlist['created_at'] = playlist['created_at'].isoformat()
+                    if playlist.get('updated_at'):
+                        playlist['updated_at'] = playlist['updated_at'].isoformat()
+                    playlists.append(playlist)
+
+                return playlists
     except Exception as e:
         logger.error(f"載入播放清單失敗: {str(e)}")
         return []
 
-def save_playlists(playlists: List[Dict[str, Any]]):
-    """儲存播放清單"""
+def save_playlist(playlist: Dict[str, Any]) -> int:
+    """儲存單個播放清單到資料庫，返回 ID"""
+    if db is None:
+        raise HTTPException(status_code=503, detail="資料庫服務無法使用")
+
     try:
-        with open(SMART_PLAYLIST_FILE, 'w', encoding='utf-8') as file:
-            json.dump(playlists, file, ensure_ascii=False, indent=2)
-        logger.info(f"成功儲存 {len(playlists)} 個播放清單")
+        with db.get_connection() as conn:
+            with db.get_cursor(conn) as cur:
+                if 'id' in playlist and playlist['id']:
+                    # 更新現有播放清單
+                    cur.execute("""
+                        UPDATE SmartPlaylists
+                        SET name = %s, base_folder = %s, filter_language = %s,
+                            filter_tags = %s, sort_by = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                        RETURNING id
+                    """, (
+                        playlist['name'],
+                        playlist['base_folder'],
+                        playlist.get('filter_language'),
+                        playlist.get('filter_tags', []),
+                        playlist.get('sort_by', 'file_creation_time'),
+                        playlist['id']
+                    ))
+                else:
+                    # 建立新播放清單
+                    cur.execute("""
+                        INSERT INTO SmartPlaylists (name, base_folder, filter_language, filter_tags, sort_by)
+                        VALUES (%s, %s, %s, %s, %s)
+                        RETURNING id
+                    """, (
+                        playlist['name'],
+                        playlist['base_folder'],
+                        playlist.get('filter_language'),
+                        playlist.get('filter_tags', []),
+                        playlist.get('sort_by', 'file_creation_time')
+                    ))
+
+                result = cur.fetchone()
+                conn.commit()
+                return result['id'] if result else None
     except Exception as e:
         logger.error(f"儲存播放清單失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=f"無法儲存播放清單: {str(e)}")
+
+def delete_playlist(playlist_id: int):
+    """從資料庫刪除播放清單"""
+    if db is None:
+        raise HTTPException(status_code=503, detail="資料庫服務無法使用")
+
+    try:
+        with db.get_connection() as conn:
+            with db.get_cursor(conn) as cur:
+                cur.execute("DELETE FROM SmartPlaylists WHERE id = %s", (playlist_id,))
+                conn.commit()
+                logger.info(f"已刪除播放清單 ID: {playlist_id}")
+    except Exception as e:
+        logger.error(f"刪除播放清單失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"無法刪除播放清單: {str(e)}")
 
 def find_audio_files(base_folder: str) -> List[str]:
     """搜尋指定資料夾中的音訊檔案"""
@@ -365,33 +407,30 @@ async def create_playlist(playlist: SmartPlaylistCreate):
     """建立新的智慧播放清單"""
     try:
         logger.info(f"建立新播放清單: {playlist.name}")
-        
-        # 載入現有播放清單
-        playlists_data = load_playlists()
-        
+
         # 檢查是否有重複名稱
+        playlists_data = load_playlists()
         existing_names = [p.get('name', '') for p in playlists_data]
         if playlist.name in existing_names:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"播放清單名稱 '{playlist.name}' 已存在"
             )
-        
-        # 新增播放清單
-        new_playlist = playlist.model_dump()
-        playlists_data.append(new_playlist)
-        
-        # 儲存播放清單
-        save_playlists(playlists_data)
-        
-        created_playlist = SmartPlaylist(**new_playlist)
-        
+
+        # 儲存播放清單到資料庫
+        new_playlist_data = playlist.model_dump()
+        playlist_id = save_playlist(new_playlist_data)
+
+        # 加入 ID 後返回
+        new_playlist_data['id'] = playlist_id
+        created_playlist = SmartPlaylist(**new_playlist_data)
+
         return SmartPlaylistResponse(
             success=True,
             message=f"成功建立播放清單 '{playlist.name}'",
             data=created_playlist
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -399,56 +438,51 @@ async def create_playlist(playlist: SmartPlaylistCreate):
         logger.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)
 
-@router.put("/{index}", response_model=SmartPlaylistResponse)
+@router.put("/{id}", response_model=SmartPlaylistResponse)
 async def update_playlist(
-    index: int = FastAPIPath(..., ge=0, description="播放清單索引"),
+    id: int = FastAPIPath(..., ge=1, description="播放清單 ID"),
     playlist: SmartPlaylistUpdate = ...
 ):
     """更新指定的智慧播放清單"""
     try:
-        logger.info(f"更新播放清單索引 {index}")
-        
+        logger.info(f"更新播放清單 ID {id}")
+
         # 載入現有播放清單
         playlists_data = load_playlists()
-        
-        # 檢查索引是否有效
-        if index >= len(playlists_data):
+
+        # 找到要更新的播放清單
+        current_playlist = next((p for p in playlists_data if p.get('id') == id), None)
+        if not current_playlist:
             raise HTTPException(
-                status_code=404, 
-                detail=f"播放清單索引 {index} 不存在"
+                status_code=404,
+                detail=f"播放清單 ID {id} 不存在"
             )
-        
-        # 更新播放清單
-        current_playlist = playlists_data[index]
+
+        # 準備更新資料
         update_data = playlist.model_dump(exclude_unset=True)
-        
+
         # 檢查名稱是否重複（除了自己）
         if 'name' in update_data:
-            existing_names = [
-                p.get('name', '') for i, p in enumerate(playlists_data) 
-                if i != index
-            ]
-            if update_data['name'] in existing_names:
+            existing = next((p for p in playlists_data if p.get('name') == update_data['name'] and p.get('id') != id), None)
+            if existing:
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
                     detail=f"播放清單名稱 '{update_data['name']}' 已存在"
                 )
-        
-        # 合併更新資料
+
+        # 合併更新資料並儲存
         current_playlist.update(update_data)
-        playlists_data[index] = current_playlist
-        
-        # 儲存播放清單
-        save_playlists(playlists_data)
-        
+        current_playlist['id'] = id
+        save_playlist(current_playlist)
+
         updated_playlist = SmartPlaylist(**current_playlist)
-        
+
         return SmartPlaylistResponse(
             success=True,
             message=f"成功更新播放清單 '{updated_playlist.name}'",
             data=updated_playlist
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -456,26 +490,25 @@ async def update_playlist(
         logger.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)
 
-@router.get("/{index}/songs")
+@router.get("/{id}/songs")
 async def get_playlist_songs(
-    index: int = FastAPIPath(..., ge=0, description="播放清單索引"),
+    id: int = FastAPIPath(..., ge=1, description="播放清單 ID"),
     sort_by: str = Query("creation_time", description="排序方式: creation_time 或 title")
 ):
     """取得指定播放清單的歌曲清單，包含排序日期資訊"""
     try:
-        logger.info(f"取得播放清單 {index} 的歌曲清單（包含排序日期）")
-        
+        logger.info(f"取得播放清單 ID {id} 的歌曲清單（包含排序日期）")
+
         # 載入播放清單
         playlists_data = load_playlists()
-        
-        # 檢查索引是否有效
-        if index >= len(playlists_data):
+
+        # 找到指定 ID 的播放清單
+        playlist = next((p for p in playlists_data if p.get('id') == id), None)
+        if not playlist:
             raise HTTPException(
                 status_code=404,
-                detail=f"播放清單索引 {index} 不存在"
+                detail=f"播放清單 ID {id} 不存在"
             )
-        
-        playlist = playlists_data[index]
         
         # 搜尋基礎資料夾中的音訊檔案
         audio_files = find_audio_files(playlist['base_folder'])
@@ -490,7 +523,7 @@ async def get_playlist_songs(
                 "success": True,
                 "message": f"播放清單 '{playlist['name']}' 沒有符合條件的歌曲",
                 "playlist_name": playlist['name'],
-                "playlist_index": index,
+                "playlist_id": id,
                 "filter_summary": {
                     "base_folder": playlist['base_folder'],
                     "filter_tags": playlist.get('filter_tags', []),
@@ -567,7 +600,7 @@ async def get_playlist_songs(
             "success": True,
             "message": f"成功取得播放清單 '{playlist['name']}' 的歌曲清單（排序方式: {sort_method_desc}）",
             "playlist_name": playlist['name'],
-            "playlist_index": index,
+            "playlist_id": id,
             "filter_summary": filter_summary,
             "songs": songs_with_dates,
             "total_count": len(songs_with_dates)
@@ -580,36 +613,33 @@ async def get_playlist_songs(
         logger.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)
 
-@router.delete("/{index}")
-async def delete_playlist(
-    index: int = FastAPIPath(..., ge=0, description="播放清單索引")
+@router.delete("/{id}")
+async def delete_playlist_endpoint(
+    id: int = FastAPIPath(..., ge=1, description="播放清單 ID")
 ):
     """刪除指定的智慧播放清單"""
     try:
-        logger.info(f"刪除播放清單索引 {index}")
-        
-        # 載入現有播放清單
+        logger.info(f"刪除播放清單 ID {id}")
+
+        # 檢查播放清單是否存在
         playlists_data = load_playlists()
-        
-        # 檢查索引是否有效
-        if index >= len(playlists_data):
+        deleted_playlist_data = next((p for p in playlists_data if p.get('id') == id), None)
+
+        if not deleted_playlist_data:
             raise HTTPException(
-                status_code=404, 
-                detail=f"播放清單索引 {index} 不存在"
+                status_code=404,
+                detail=f"播放清單 ID {id} 不存在"
             )
-        
-        # 刪除播放清單
-        deleted_playlist = playlists_data.pop(index)
-        
-        # 儲存播放清單
-        save_playlists(playlists_data)
-        
+
+        # 從資料庫刪除
+        delete_playlist(id)
+
         return {
             "success": True,
-            "message": f"成功刪除播放清單 '{deleted_playlist.get('name', '未知')}'",
-            "deleted_playlist": deleted_playlist
+            "message": f"成功刪除播放清單 '{deleted_playlist_data.get('name', '未知')}'",
+            "deleted_playlist": deleted_playlist_data
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -696,26 +726,27 @@ def generate_m3u_content(playlist: Dict[str, Any], playlist_name: str, use_relat
     return m3u_content
 
 
-@router.post("/{index}/generate-m3u")
+@router.post("/{id}/generate-m3u")
 async def generate_playlist_m3u_to_file(
-    index: int = FastAPIPath(..., ge=0, description="播放清單索引")
+    id: int = FastAPIPath(..., ge=1, description="播放清單 ID")
 ):
     """生成播放清單 M3U 檔案到檔案系統"""
     try:
-        logger.info(f"生成播放清單 {index} M3U 檔案到檔案系統")
+        logger.info(f"生成播放清單 ID {id} M3U 檔案到檔案系統")
         
         # 載入播放清單
         playlists_data = load_playlists()
         
         # 檢查索引是否有效
-        if index >= len(playlists_data):
+        playlist = next((p for p in playlists_data if p.get('id') == id), None)
+        if not playlist:
             raise HTTPException(
                 status_code=404,
-                detail=f"播放清單索引 {index} 不存在"
+                detail=f"播放清單 ID {id} 不存在"
             )
         
-        playlist = playlists_data[index]
-        playlist_name = playlist.get('name', f'playlist_{index}')
+        
+        playlist_name = playlist.get('name', f'playlist_{id}')
         base_folder = playlist.get('base_folder', '')
         
         # 生成 M3U 內容（檔案系統生成使用相對路徑）
@@ -730,7 +761,7 @@ async def generate_playlist_m3u_to_file(
         # 清理播放清單名稱，作為檔案名稱
         safe_filename = "".join(c for c in playlist_name if c.isalnum() or c in (' ', '-', '_', '・', '。', '，', '；', '：', '！', '？')).rstrip()
         if not safe_filename:
-            safe_filename = f"playlist_{index}"
+            safe_filename = f"playlist_{id}"
         
         # M3U 檔案完整路徑
         m3u_file_path = os.path.join(playlist_dir, f"{safe_filename}.m3u")
@@ -764,26 +795,27 @@ async def generate_playlist_m3u_to_file(
         raise HTTPException(status_code=500, detail=error_msg)
 
 
-@router.get("/{index}/download-m3u")
+@router.get("/{id}/download-m3u")
 async def download_playlist_m3u(
-    index: int = FastAPIPath(..., ge=0, description="播放清單索引")
+    id: int = FastAPIPath(..., ge=1, description="播放清單 ID")
 ):
     """下載播放清單為 M3U 格式"""
     try:
-        logger.info(f"下載播放清單 {index} 為 M3U 格式")
+        logger.info(f"下載播放清單 ID {id} 為 M3U 格式")
         
         # 載入播放清單
         playlists_data = load_playlists()
         
         # 檢查索引是否有效
-        if index >= len(playlists_data):
+        playlist = next((p for p in playlists_data if p.get('id') == id), None)
+        if not playlist:
             raise HTTPException(
                 status_code=404,
-                detail=f"播放清單索引 {index} 不存在"
+                detail=f"播放清單 ID {id} 不存在"
             )
         
-        playlist = playlists_data[index]
-        playlist_name = playlist.get('name', f'playlist_{index}')
+        
+        playlist_name = playlist.get('name', f'playlist_{id}')
         
         # 生成 M3U 內容（下載功能使用絕對路徑）
         m3u_content = generate_m3u_content(playlist, playlist_name, use_relative_paths=False)
@@ -791,7 +823,7 @@ async def download_playlist_m3u(
         # 清理播放清單名稱，作為檔案名稱
         safe_filename = "".join(c for c in playlist_name if c.isalnum() or c in (' ', '-', '_', '・', '。', '，', '；', '：', '！', '？')).rstrip()
         if not safe_filename:
-            safe_filename = f"playlist_{index}"
+            safe_filename = f"playlist_{id}"
         
         filename = f"{safe_filename}.m3u"
         
@@ -839,12 +871,13 @@ async def generate_all_playlists_m3u():
         error_count = 0
         errors = []
         
-        for index, playlist in enumerate(playlists_data):
+        for playlist in playlists_data:
             try:
-                playlist_name = playlist.get('name', f'playlist_{index}')
+                playlist_id = playlist.get('id')
+                playlist_name = playlist.get('name', f'playlist_{playlist_id}')
                 base_folder = playlist.get('base_folder', '')
-                
-                logger.info(f"正在生成播放清單 {index}: {playlist_name}")
+
+                logger.info(f"正在生成播放清單 {playlist_id}: {playlist_name}")
                 
                 # 生成 M3U 內容（使用相對路徑）
                 m3u_content = generate_m3u_content(playlist, playlist_name, use_relative_paths=True)
@@ -858,11 +891,11 @@ async def generate_all_playlists_m3u():
                 # 清理播放清單名稱，作為檔案名稱
                 safe_filename = "".join(c for c in playlist_name if c.isalnum() or c in (' ', '-', '_', '・', '。', '，', '；', '：', '！', '？')).rstrip()
                 if not safe_filename:
-                    safe_filename = f"playlist_{index}"
-                
+                    safe_filename = f"playlist_{playlist_id}"
+
                 # M3U 檔案完整路徑
                 m3u_file_path = os.path.join(playlist_dir, f"{safe_filename}.m3u")
-                
+
                 # 寫入 M3U 檔案
                 try:
                     with open(m3u_file_path, 'w', encoding='utf-8') as m3u_file:
@@ -871,12 +904,12 @@ async def generate_all_playlists_m3u():
                     # 如果權限不足，嘗試以追加模式打開並清空檔案
                     logger.warning(f"權限不足，無法直接寫入 {m3u_file_path}，嘗試替代方法")
                     raise PermissionError(f"無法寫入檔案 {m3u_file_path}，請檢查檔案權限")
-                
+
                 # 計算歌曲數量
                 songs_count = m3u_content.count('\n#EXTINF')
-                
+
                 generated_files.append({
-                    "index": index,
+                    "id": playlist_id,
                     "playlist_name": playlist_name,
                     "file_path": m3u_file_path,
                     "songs_count": songs_count,
@@ -884,15 +917,15 @@ async def generate_all_playlists_m3u():
                 })
                 
                 success_count += 1
-                logger.info(f"成功生成播放清單 {index}: {playlist_name} -> {m3u_file_path}")
-                
+                logger.info(f"成功生成播放清單 {playlist_id}: {playlist_name} -> {m3u_file_path}")
+
             except Exception as e:
-                error_msg = f"生成播放清單 {index} ({playlist.get('name', 'Unknown')}) 失敗: {str(e)}"
+                error_msg = f"生成播放清單 {playlist_id} ({playlist.get('name', 'Unknown')}) 失敗: {str(e)}"
                 logger.error(error_msg)
-                
+
                 generated_files.append({
-                    "index": index,
-                    "playlist_name": playlist.get('name', f'playlist_{index}'),
+                    "id": playlist_id,
+                    "playlist_name": playlist.get('name', f'playlist_{playlist_id}'),
                     "file_path": None,
                     "songs_count": 0,
                     "success": False,

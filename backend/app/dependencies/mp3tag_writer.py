@@ -4,21 +4,18 @@ from mutagen.flac import FLAC
 from mutagen.mp3 import MP3
 from mutagen.oggvorbis import OggVorbis
 from mutagen.id3 import TIT2, TPE1, TALB, TPE2, TCOM, TDRC, TRCK, TPOS, TSOT, TSOP, TSOA, TSO2, TSOC, COMM, USLT
-import yaml
 import os
 
 from app.dependencies.logger import logger
 
 
 def load_supported_genres():
-    """從 config.yaml 載入支援的流派"""
+    """從資料庫載入支援的流派"""
     try:
-        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', 'config.yaml')
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-            return config.get('supported_tags', [])
+        from app.router.config import get_config
+        return get_config('supported_tags') or []
     except Exception as e:
-        logger.error(f"載入 config.yaml 失敗: {str(e)}")
+        logger.error(f"載入設定失敗: {str(e)}")
         return []
 
 

@@ -8,6 +8,7 @@ from app.router.playlists import router as playlists_router
 from app.router.cache import router as cache_router
 from app.router.music_import import router as music_import_router
 from app.router.tasks import router as tasks_router
+from app.router.config import router as config_router
 from app.dependencies.logger import logger
 
 app = FastAPI(
@@ -32,6 +33,7 @@ app.include_router(playlists_router)
 app.include_router(cache_router)
 app.include_router(music_import_router)
 app.include_router(tasks_router)
+app.include_router(config_router)
 
 @app.on_event("startup")
 async def startup_event():

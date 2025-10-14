@@ -1,19 +1,13 @@
 from fastapi import APIRouter, HTTPException
 from app.dependencies.redis_cache import redis_cache
 from app.dependencies.logger import logger
+from app.router.config import get_config
 import os
-import yaml
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 router = APIRouter(prefix="/cache", tags=["cache"])
-
-def load_config():
-    """載入 config.yaml 設定檔"""
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config.yaml')
-    with open(config_path, 'r', encoding='utf-8') as file:
-        return yaml.safe_load(file)
 
 def _scan_folder_sync(folder_path: str) -> List[str]:
     """同步掃描單一資料夾中的音訊檔案"""
@@ -57,10 +51,9 @@ async def rebuild_cache():
     """重建標籤快取"""
     try:
         logger.info("開始重建標籤快取")
-        
-        # 載入設定檔
-        config = load_config()
-        allow_folders = config.get('allow_folders', [])
+
+        # 從資料庫載入設定
+        allow_folders = get_config('allow_folders') or []
         
         music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
         
@@ -146,9 +139,8 @@ async def get_cache_statistics():
         if redis_cache is None:
             raise HTTPException(status_code=503, detail="Redis 快取服務無法使用")
 
-        # 載入設定檔
-        config = load_config()
-        allow_folders = config.get('allow_folders', [])
+        # 從資料庫載入設定
+        allow_folders = get_config('allow_folders') or []
 
         music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
 
