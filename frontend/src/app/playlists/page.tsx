@@ -8,6 +8,7 @@ import PlaylistEditDialog from '@/components/PlaylistEditDialog';
 import TaskStatusDialog from '@/components/TaskStatusDialog';
 
 interface SmartPlaylist {
+  id: number;
   name: string;
   base_folder: string;
   filter_tags: string[];
@@ -33,11 +34,11 @@ export default function PlaylistsPage() {
   const [error, setError] = useState<string | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingPlaylist, setEditingPlaylist] = useState<SmartPlaylist | null>(null);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deletingPlaylist, setDeletingPlaylist] = useState<SmartPlaylist | null>(null);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
@@ -68,17 +69,18 @@ export default function PlaylistsPage() {
     }
   };
 
-  const handleEditPlaylist = (playlist: SmartPlaylist, index: number) => {
+  const handleEditPlaylist = (playlist: SmartPlaylist) => {
     setEditingPlaylist(playlist);
-    setEditingIndex(index);
+    setEditingId(playlist.id);
+    setIsCreating(false);
     setEditDialogOpen(true);
   };
 
-  const handleSavePlaylist = async (index: number | null, updatedPlaylist: Partial<SmartPlaylist>) => {
+  const handleSavePlaylist = async (id: number | null, updatedPlaylist: Partial<SmartPlaylist>) => {
     try {
       setLoading(true);
 
-      if (index === null) {
+      if (id === null) {
         // 新增播放清單
         const response = await fetch('/api/playlists/', {
           method: 'POST',
@@ -95,7 +97,7 @@ export default function PlaylistsPage() {
           await fetchPlaylists();
           setEditDialogOpen(false);
           setEditingPlaylist(null);
-          setEditingIndex(null);
+          setEditingId(null);
           setIsCreating(false);
           setSuccessMessage(data.message || '成功建立播放清單');
           // 清除成功訊息 after 3 seconds
@@ -105,7 +107,7 @@ export default function PlaylistsPage() {
         }
       } else {
         // 更新播放清單
-        const response = await fetch(`/api/playlists/${index}`, {
+        const response = await fetch(`/api/playlists/${id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -120,7 +122,7 @@ export default function PlaylistsPage() {
           await fetchPlaylists();
           setEditDialogOpen(false);
           setEditingPlaylist(null);
-          setEditingIndex(null);
+          setEditingId(null);
           setSuccessMessage(data.message || '成功更新播放清單');
           // 清除成功訊息 after 3 seconds
           setTimeout(() => setSuccessMessage(null), 3000);
@@ -138,7 +140,7 @@ export default function PlaylistsPage() {
 
   const handleAddPlaylist = () => {
     setEditingPlaylist(null);
-    setEditingIndex(null);
+    setEditingId(null);
     setIsCreating(true);
     setEditDialogOpen(true);
   };
@@ -189,21 +191,21 @@ export default function PlaylistsPage() {
   };
 
 
-  const handleDeletePlaylist = (playlist: SmartPlaylist, index: number) => {
+  const handleDeletePlaylist = (playlist: SmartPlaylist) => {
     setDeletingPlaylist(playlist);
-    setDeletingIndex(index);
+    setDeletingId(playlist.id);
     setDeleteConfirmOpen(true);
   };
 
   const confirmDeletePlaylist = async () => {
-    if (deletingIndex === null) return;
+    if (deletingId === null) return;
 
     try {
       setLoading(true);
       setError(null);
       setSuccessMessage(null);
 
-      const response = await fetch(`/api/playlists/${deletingIndex}`, {
+      const response = await fetch(`/api/playlists/${deletingId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -217,7 +219,7 @@ export default function PlaylistsPage() {
         await fetchPlaylists();
         setDeleteConfirmOpen(false);
         setDeletingPlaylist(null);
-        setDeletingIndex(null);
+        setDeletingId(null);
         setSuccessMessage(data.message || '成功刪除播放清單');
         // 清除成功訊息 after 3 seconds
         setTimeout(() => setSuccessMessage(null), 3000);
@@ -235,14 +237,14 @@ export default function PlaylistsPage() {
   const cancelDeletePlaylist = () => {
     setDeleteConfirmOpen(false);
     setDeletingPlaylist(null);
-    setDeletingIndex(null);
+    setDeletingId(null);
   };
 
-  const handleDownloadM3U = (index: number, playlist: SmartPlaylist) => {
+  const handleDownloadM3U = (playlist: SmartPlaylist) => {
     try {
       // 創建下載連結
-      const downloadUrl = `/api/playlists/${index}/download-m3u`;
-      
+      const downloadUrl = `/api/playlists/${playlist.id}/download-m3u`;
+
       // 創建隐藏的 a 標籤來觸發下載
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -250,7 +252,7 @@ export default function PlaylistsPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       setSuccessMessage(`開始下載播放清單 "${playlist.name}" 的 M3U 檔案`);
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (error) {
@@ -259,12 +261,12 @@ export default function PlaylistsPage() {
     }
   };
 
-  const handleGenerateM3U = async (index: number, _playlist: SmartPlaylist) => {
+  const handleGenerateM3U = async (playlist: SmartPlaylist) => {
     try {
       setError(null);
       setSuccessMessage(null);
 
-      const response = await fetch(`/api/playlists/${index}/generate-m3u`, {
+      const response = await fetch(`/api/playlists/${playlist.id}/generate-m3u`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -436,11 +438,9 @@ export default function PlaylistsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {getSortedPlaylists().map((playlist, _displayIndex) => {
-                    // 尋找原始索引
-                    const originalIndex = playlists.findIndex(p => p.name === playlist.name && p.base_folder === playlist.base_folder);
+                  {getSortedPlaylists().map((playlist) => {
                     return (
-                    <tr key={originalIndex} className="border-b hover:bg-gray-50">
+                    <tr key={playlist.id} className="border-b hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-900 font-medium max-w-[240px] min-w-[100px]">
                         {playlist.name}
                       </td>
@@ -480,35 +480,35 @@ export default function PlaylistsPage() {
                       </td>
                       <td className="px-4 py-3 max-w-[280px] min-w-[100px] text-center">
                         <Link
-                          href={`/playlist/${originalIndex}`}
+                          href={`/playlist/${playlist.id}`}
                           className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
                           title="查看播放清單"
                         >
                           <ListMusic className="w-5 h-5" />
                         </Link>
                         <button
-                          onClick={() => handleEditPlaylist(playlist, originalIndex)}
+                          onClick={() => handleEditPlaylist(playlist)}
                           className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
                           title="編輯播放清單"
                         >
                           <Edit className="w-5 h-5" />
                         </button>
                         <button
-                          onClick={() => handleDownloadM3U(originalIndex, playlist)}
+                          onClick={() => handleDownloadM3U(playlist)}
                           className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
                           title="下載 M3U 檔案"
                         >
                           <Download className="w-5 h-5" />
                         </button>
                         <button
-                          onClick={() => handleGenerateM3U(originalIndex, playlist)}
+                          onClick={() => handleGenerateM3U(playlist)}
                           className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
                           title="生成 M3U 檔案到檔案系統"
                         >
                           <FileText className="w-5 h-5" />
                         </button>
                         <button
-                          onClick={() => handleDeletePlaylist(playlist, originalIndex)}
+                          onClick={() => handleDeletePlaylist(playlist)}
                           className="m-1 inline-flex items-center p-2 text-xs text-red-800 rounded border border-red-200 hover:bg-red-100"
                           title="刪除播放清單"
                         >
@@ -531,9 +531,17 @@ export default function PlaylistsPage() {
 
       <PlaylistEditDialog
         playlist={editingPlaylist}
-        playlistIndex={editingIndex}
+        playlistId={editingId}
         open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
+        onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) {
+            // 對話框關閉時清理狀態
+            setEditingPlaylist(null);
+            setEditingId(null);
+            setIsCreating(false);
+          }
+        }}
         onSave={handleSavePlaylist}
         isCreate={isCreating}
       />

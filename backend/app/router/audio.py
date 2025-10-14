@@ -153,6 +153,8 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
             "Cover": cover_path,
             "Lyrics": tag_to_string(tags.get('lyrics', ''), 'lyrics'),
             "Comment": tag_to_string(tags.get('comment', ''), 'comment'),
+            "ReplayGainTrackGain": tag_to_string(tags.get('replaygain_track_gain', ''), 'replaygain_track_gain'),
+            "ReplayGainTrackPeak": tag_to_string(tags.get('replaygain_track_peak', ''), 'replaygain_track_peak'),
             "ModificationTime": modification_time
         }
     except Exception:
@@ -177,6 +179,8 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
             "Cover": "",
             "Lyrics": "",
             "Comment": "",
+            "ReplayGainTrackGain": "",
+            "ReplayGainTrackPeak": "",
             "ModificationTime": modification_time
         }
 
@@ -249,6 +253,7 @@ async def get_audios(
     """獲取允許資料夾中的所有音訊檔案路徑（併發優化版本，支援分頁）"""
     try:
         allow_folders = get_config('allow_folders') or []
+        supported_languages = get_config('supported_languages') or {}
         
         music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
 
@@ -325,6 +330,7 @@ async def get_audios(
                 "has_next": p < total_pages
             },
             "allow_folders": allow_folders,
+            "supported_languages": supported_languages,
             "details_mode": need_details,
             "filters": {
                 "title": filterTitle,
@@ -422,7 +428,10 @@ async def get_audio_tags(request: AudioTagsRequest):
             raise HTTPException(status_code=400, detail="路徑不是檔案")
         
         # 使用快取讀取標籤
-        tags = tags_cache.get_cached_tags_with_fallback(request.path)
+        if redis_cache is None:
+            tags = read_audio_tags(request.path)
+        else:
+            tags = redis_cache.get_cached_tags_with_fallback(request.path)
         folder = get_folder_from_path(request.path)
         
         if not tags:

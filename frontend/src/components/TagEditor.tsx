@@ -25,6 +25,8 @@ interface Song {
   SortComposer?: string;
   Lyrics?: string;
   Comment?: string;
+  ReplayGainTrackGain?: string;
+  ReplayGainTrackPeak?: string;
 }
 
 interface TagEditorProps {
@@ -40,6 +42,7 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [coverImage, setCoverImage] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [generatingReplayGain, setGeneratingReplayGain] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -55,6 +58,8 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
         SortComposer: song.SortComposer || '',
         Lyrics: song.Lyrics || '',
         Comment: song.Comment || '',
+        ReplayGainTrackGain: song.ReplayGainTrackGain || '',
+        ReplayGainTrackPeak: song.ReplayGainTrackPeak || '',
       });
       // 設置封面圖片 - 使用 API 端點
       if (song.Cover) {
@@ -212,6 +217,46 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
       console.error('Lyric processing failed:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const generateReplayGain = async () => {
+    if (!editedSong?.FilePath) return;
+
+    setGeneratingReplayGain(true);
+    try {
+      const response = await fetch('/api/audios/replaygain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: editedSong.FilePath })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert('ReplayGain 生成成功！請重新開啟編輯視窗查看結果。');
+        // 重新讀取檔案標籤以獲取新的 ReplayGain 值
+        const tagsResponse = await fetch('/api/audios', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: editedSong.FilePath })
+        });
+
+        if (tagsResponse.ok) {
+          const tagsData = await tagsResponse.json();
+          if (tagsData.tags) {
+            handleInputChange('ReplayGainTrackGain', tagsData.tags.replaygain_track_gain || '');
+            handleInputChange('ReplayGainTrackPeak', tagsData.tags.replaygain_track_peak || '');
+          }
+        }
+      } else {
+        alert(`ReplayGain 生成失敗: ${data.message || '未知錯誤'}`);
+      }
+    } catch (error) {
+      console.error('ReplayGain generation failed:', error);
+      alert('生成 ReplayGain 時發生錯誤');
+    } finally {
+      setGeneratingReplayGain(false);
     }
   };
 
@@ -516,6 +561,41 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
                 rows={2}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
               />
+            </div>
+          </div>
+          {/* ReplayGain Section */}
+          <div className="bg-white rounded-lg border p-4 space-y-3">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-gray-700 font-medium">ReplayGain</label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={generateReplayGain}
+                disabled={generatingReplayGain}
+                className="text-xs"
+              >
+                {generatingReplayGain ? '生成中...' : '計算 ReplayGain'}
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-gray-500 text-sm block mb-1">Track Gain</label>
+                <Input
+                  value={editedSong.ReplayGainTrackGain || ''}
+                  readOnly
+                  placeholder="未設定"
+                  className="bg-gray-50"
+                />
+              </div>
+              <div>
+                <label className="text-gray-500 text-sm block mb-1">Track Peak</label>
+                <Input
+                  value={editedSong.ReplayGainTrackPeak || ''}
+                  readOnly
+                  placeholder="未設定"
+                  className="bg-gray-50"
+                />
+              </div>
             </div>
           </div>
           {/* Other Fields */}

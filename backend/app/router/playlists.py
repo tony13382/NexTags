@@ -61,6 +61,9 @@ def load_playlists() -> List[Dict[str, Any]]:
                 playlists = []
                 for row in rows:
                     playlist = dict(row)
+                    # 將資料庫的 sort_by 欄位轉換為 sort_method（API 使用的名稱）
+                    if 'sort_by' in playlist:
+                        playlist['sort_method'] = playlist.pop('sort_by')
                     # 將時間戳轉換為字串
                     if playlist.get('created_at'):
                         playlist['created_at'] = playlist['created_at'].isoformat()
@@ -79,6 +82,9 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
         raise HTTPException(status_code=503, detail="資料庫服務無法使用")
 
     try:
+        # 將 API 的 sort_method 轉換為資料庫的 sort_by
+        sort_value = playlist.get('sort_method') or playlist.get('sort_by', 'creation_time')
+
         with db.get_connection() as conn:
             with db.get_cursor(conn) as cur:
                 if 'id' in playlist and playlist['id']:
@@ -94,7 +100,7 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
                         playlist['base_folder'],
                         playlist.get('filter_language'),
                         playlist.get('filter_tags', []),
-                        playlist.get('sort_by', 'file_creation_time'),
+                        sort_value,
                         playlist['id']
                     ))
                 else:
@@ -108,7 +114,7 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
                         playlist['base_folder'],
                         playlist.get('filter_language'),
                         playlist.get('filter_tags', []),
-                        playlist.get('sort_by', 'file_creation_time')
+                        sort_value
                     ))
 
                 result = cur.fetchone()
@@ -461,8 +467,8 @@ async def update_playlist(
         # 準備更新資料
         update_data = playlist.model_dump(exclude_unset=True)
 
-        # 檢查名稱是否重複（除了自己）
-        if 'name' in update_data:
+        # 檢查名稱是否重複（只有當名稱真的改變時才需要檢查）
+        if 'name' in update_data and update_data['name'] != current_playlist.get('name'):
             existing = next((p for p in playlists_data if p.get('name') == update_data['name'] and p.get('id') != id), None)
             if existing:
                 raise HTTPException(
@@ -852,10 +858,10 @@ async def generate_all_playlists_m3u():
     """批量生成所有播放清單的 M3U 檔案到檔案系統"""
     try:
         logger.info("開始批量生成所有播放清單的 M3U 檔案")
-        
+
         # 載入所有播放清單
         playlists_data = load_playlists()
-        
+
         if not playlists_data:
             return {
                 "success": True,
@@ -865,7 +871,35 @@ async def generate_all_playlists_m3u():
                 "success_count": 0,
                 "error_count": 0
             }
-        
+
+        # 第一步：收集所有需要清理的 Playlist 目錄
+        playlist_dirs = set()
+        for playlist in playlists_data:
+            base_folder = playlist.get('base_folder', '')
+            if base_folder:
+                playlist_dir = os.path.join("/Music", base_folder, "Playlist")
+                playlist_dirs.add(playlist_dir)
+
+        # 第二步：清理這些目錄中的所有舊 M3U 檔案
+        cleaned_files_count = 0
+        for playlist_dir in playlist_dirs:
+            if os.path.exists(playlist_dir):
+                try:
+                    # 找到所有 .m3u 檔案
+                    m3u_files = glob.glob(os.path.join(playlist_dir, "*.m3u"))
+                    for m3u_file in m3u_files:
+                        try:
+                            os.remove(m3u_file)
+                            cleaned_files_count += 1
+                            logger.info(f"已刪除舊的 M3U 檔案: {m3u_file}")
+                        except Exception as e:
+                            logger.warning(f"無法刪除檔案 {m3u_file}: {str(e)}")
+                except Exception as e:
+                    logger.warning(f"清理目錄 {playlist_dir} 失敗: {str(e)}")
+
+        logger.info(f"清理完成，共刪除 {cleaned_files_count} 個舊的 M3U 檔案")
+
+        # 第三步：生成新的 M3U 檔案
         generated_files = []
         success_count = 0
         error_count = 0
@@ -935,15 +969,16 @@ async def generate_all_playlists_m3u():
                 errors.append(error_msg)
                 error_count += 1
         
-        logger.info(f"批量生成完成：成功 {success_count} 個，失敗 {error_count} 個")
-        
+        logger.info(f"批量生成完成：清理 {cleaned_files_count} 個舊檔案，成功生成 {success_count} 個，失敗 {error_count} 個")
+
         return {
             "success": True,
-            "message": f"批量生成完成：成功 {success_count} 個，失敗 {error_count} 個",
+            "message": f"批量生成完成：清理 {cleaned_files_count} 個舊檔案，成功生成 {success_count} 個，失敗 {error_count} 個",
             "generated_files": generated_files,
             "total_count": len(playlists_data),
             "success_count": success_count,
             "error_count": error_count,
+            "cleaned_files_count": cleaned_files_count,
             "errors": errors if errors else None
         }
         

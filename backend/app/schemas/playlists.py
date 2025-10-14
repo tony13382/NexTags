@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional, List, Union
 
 class SmartPlaylist(BaseModel):
     """智慧播放清單資料模型"""
+    id: int = Field(..., description="播放清單 ID")
     name: str = Field(..., description="播放清單名稱")
     base_folder: str = Field(..., description="基礎資料夾路徑")
     filter_tags: List[str] = Field(default_factory=list, description="標籤過濾條件")

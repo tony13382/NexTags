@@ -71,9 +71,9 @@ def generate_replaygain(file_path: str) -> Tuple[bool, str]:
         logger.info(f"開始為檔案生成 ReplayGain: {file_path}")
 
         # 執行 r128gain
-        # -a: album mode (也會計算 track gain)
+        # 只計算 track gain 和 track peak，不使用 -a (album mode)
         result = subprocess.run(
-            [r128gain_cmd, '-a', file_path],
+            [r128gain_cmd, file_path],
             capture_output=True,
             text=True,
             timeout=60  # 60秒超時

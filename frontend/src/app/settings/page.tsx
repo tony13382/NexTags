@@ -151,9 +151,9 @@ export default function SettingsPage() {
                   onClick={() => {
                     setEditingTags(editingTags.filter((_, i) => i !== index));
                   }}
-                  className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  className="px-3 py-2 text-gray-500 hover:text-red-500 rounded"
                 >
-                  刪除
+                  ✕
                 </button>
               </div>
             ))}
@@ -173,7 +173,7 @@ export default function SettingsPage() {
                   setNewTag('');
                 }
               }}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
             >
               新增
             </button>
@@ -209,9 +209,9 @@ export default function SettingsPage() {
                     delete newLangs[code];
                     setEditingLanguages(newLangs);
                   }}
-                  className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  className="px-3 py-2 text-gray-500 hover:text-red-500 rounded"
                 >
-                  刪除
+                  ✕
                 </button>
               </div>
             ))}
@@ -242,7 +242,7 @@ export default function SettingsPage() {
                   setNewLangName('');
                 }
               }}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
             >
               新增
             </button>
@@ -269,9 +269,9 @@ export default function SettingsPage() {
                   onClick={() => {
                     setEditingFolders(editingFolders.filter((_, i) => i !== index));
                   }}
-                  className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  className="px-3 py-2 text-gray-500 hover:text-red-500 rounded"
                 >
-                  刪除
+                  ✕
                 </button>
               </div>
             ))}
@@ -291,7 +291,7 @@ export default function SettingsPage() {
                   setNewFolder('');
                 }
               }}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
             >
               新增
             </button>

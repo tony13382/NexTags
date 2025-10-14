@@ -21,16 +21,16 @@ interface SmartPlaylist {
 
 interface PlaylistEditDialogProps {
     playlist: SmartPlaylist | null;
-    playlistIndex: number | null;
+    playlistId: number | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSave: (index: number | null, updatedPlaylist: Partial<SmartPlaylist>) => void;
+    onSave: (id: number | null, updatedPlaylist: Partial<SmartPlaylist>) => void;
     isCreate?: boolean;
 }
 
 export default function PlaylistEditDialog({
     playlist,
-    playlistIndex,
+    playlistId,
     open,
     onOpenChange,
     onSave,
@@ -129,7 +129,7 @@ export default function PlaylistEditDialog({
 
         setLoading(true);
         try {
-            onSave(playlistIndex, editedPlaylist);
+            onSave(playlistId, editedPlaylist);
             onOpenChange(false);
         } catch (error) {
             console.error('Failed to save playlist:', error);

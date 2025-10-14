@@ -32,6 +32,21 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
         'genre': ['genre', 'TCON', '\xa9gen', 'GENRE'],
         'language': ['language', 'TLAN', 'LANGUAGE'],
         'favorite': ['favorite', 'FAVORITE', 'Favorite', 'TXXX:FAVORITE', 'TXXX:Favorite'],
+        # ReplayGain 相關標籤（只保留 Track Gain 和 Track Peak）
+        'replaygain_track_gain': [
+            'replaygain_track_gain',  # FLAC/Vorbis (小寫)
+            'REPLAYGAIN_TRACK_GAIN',  # FLAC/Vorbis (大寫)
+            'TXXX:REPLAYGAIN_TRACK_GAIN',  # MP3 (ID3v2) - 大寫
+            'TXXX:replaygain_track_gain',  # MP3 (ID3v2) - 小寫
+            '----:com.apple.iTunes:replaygain_track_gain',  # MP4
+        ],
+        'replaygain_track_peak': [
+            'replaygain_track_peak',  # FLAC/Vorbis (小寫)
+            'REPLAYGAIN_TRACK_PEAK',  # FLAC/Vorbis (大寫)
+            'TXXX:REPLAYGAIN_TRACK_PEAK',  # MP3 (ID3v2) - 大寫
+            'TXXX:replaygain_track_peak',  # MP3 (ID3v2) - 小寫
+            '----:com.apple.iTunes:replaygain_track_peak',  # MP4
+        ],
     }
     
     # 直接複製所有原始標籤
@@ -72,6 +87,9 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
                     elif standard_key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
                         # Artist 相關標籤使用反斜線分隔
                         normalized[standard_key] = '\\'.join(str(v) for v in raw_value) if raw_value else ''
+                    elif standard_key.startswith('replaygain_'):
+                        # ReplayGain 標籤取第一個值
+                        normalized[standard_key] = str(raw_value[0]) if raw_value else ''
                     else:
                         # 其他標籤轉換為字符串
                         normalized[standard_key] = ' '.join(str(v) for v in raw_value) if raw_value else ''

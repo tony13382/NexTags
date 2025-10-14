@@ -99,7 +99,7 @@ export default function CachePage() {
                     <div>
                         <h2 className="text-xl font-semibold mb-4">實際檔案數據</h2>
                         <div>
-                            <div className="grid grid-cols-4 gap-8">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
                                 {statistics.folders.map((folder) => (
                                     <div key={folder} className="bg-white border rounded-lg p-6 text-left">
                                         <div className="text-gray-600 mb-2">{folder}</div>
@@ -155,7 +155,7 @@ export default function CachePage() {
 
                             {/* 各資料夾快取數據 */}
                             {statistics.cached_files.by_folder && (
-                                <div className="grid grid-cols-4 gap-8">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
                                     {statistics.folders.map((folder) => (
                                         <div key={folder} className="bg-white border rounded-lg p-6 text-left">
                                             <div className="text-gray-600 mb-2">{folder}</div>

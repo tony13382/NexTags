@@ -15,6 +15,7 @@ interface TagEditorProps {
 export default function MusicImportTagEditor({ filePath, initialTags, onSave, onCancel }: TagEditorProps) {
     const [tags, setTags] = useState<Record<string, unknown>>(initialTags || {})
     const [loading, setLoading] = useState(false)
+    const [generatingReplayGain, setGeneratingReplayGain] = useState(false)
     const [languages, setLanguages] = useState<Record<string, string>>({})
     const [availableTags, setAvailableTags] = useState<string[]>([])
 
@@ -110,6 +111,46 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
             console.error('Lyric processing failed:', error)
         } finally {
             setLoading(false)
+        }
+    }
+
+    const generateReplayGain = async () => {
+        if (!filePath) return
+
+        setGeneratingReplayGain(true)
+        try {
+            const response = await fetch('/api/audios/replaygain', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: filePath })
+            })
+
+            const data = await response.json()
+
+            if (response.ok && data.success) {
+                alert('ReplayGain 生成成功！標籤已更新。')
+                // 重新讀取檔案標籤以獲取新的 ReplayGain 值
+                const tagsResponse = await fetch('/api/audios', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: filePath })
+                })
+
+                if (tagsResponse.ok) {
+                    const tagsData = await tagsResponse.json()
+                    if (tagsData.tags) {
+                        handleInputChange('replaygain_track_gain', tagsData.tags.replaygain_track_gain || '')
+                        handleInputChange('replaygain_track_peak', tagsData.tags.replaygain_track_peak || '')
+                    }
+                }
+            } else {
+                alert(`ReplayGain 生成失敗: ${data.message || '未知錯誤'}`)
+            }
+        } catch (error) {
+            console.error('ReplayGain generation failed:', error)
+            alert('生成 ReplayGain 時發生錯誤')
+        } finally {
+            setGeneratingReplayGain(false)
         }
     }
 
@@ -358,6 +399,42 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
                 />
+            </div>
+
+            {/* ReplayGain */}
+            <div>
+                <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-gray-700">ReplayGain</label>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={generateReplayGain}
+                        disabled={generatingReplayGain}
+                        className="text-xs"
+                    >
+                        {generatingReplayGain ? '生成中...' : '計算 ReplayGain'}
+                    </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">Track Gain</label>
+                        <Input
+                            value={String(tags.replaygain_track_gain || '')}
+                            readOnly
+                            placeholder="未設定"
+                            className="bg-gray-50"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">Track Peak</label>
+                        <Input
+                            value={String(tags.replaygain_track_peak || '')}
+                            readOnly
+                            placeholder="未設定"
+                            className="bg-gray-50"
+                        />
+                    </div>
+                </div>
             </div>
 
             {/* 歌詞 */}
