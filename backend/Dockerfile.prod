@@ -15,12 +15,21 @@ RUN uv sync --frozen --no-dev
 
 COPY . .
 
-# 創建非 root 用戶
-RUN groupadd -r appuser && useradd -r -g appuser -m appuser
+# 創建非 root 用戶，使用與主機相同的 UID/GID
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+RUN groupadd -g ${GROUP_ID} appuser || groupmod -g ${GROUP_ID} appuser
+RUN useradd -u ${USER_ID} -g appuser -m -s /bin/bash appuser || usermod -u ${USER_ID} -g ${GROUP_ID} appuser
 RUN chown -R appuser:appuser /app
 RUN mkdir -p /home/appuser/.cache && chown -R appuser:appuser /home/appuser/.cache
+
+# 複製並設置 entrypoint 腳本
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 USER appuser
 
 EXPOSE 8000
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
