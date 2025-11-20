@@ -24,11 +24,15 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
         'album': ['album', 'TALB', '\xa9alb', 'ALBUM'],
         'albumartist': ['albumartist', 'TPE2', 'aART', 'ALBUMARTIST'],
         'composer': ['composer', 'TCOM', '\xa9wrt', 'COMPOSER'],
+        'performer': ['performer', 'TPE3', '\xa9prf', 'PERFORMER'],
         'titlesort': ['titlesort', 'TSOT', 'sonm', 'TITLESORT'],
         'artistsort': ['artistsort', 'TSOP', 'soar', 'ARTISTSORT'],
         'albumsort': ['albumsort', 'TSOA', 'soal', 'ALBUMSORT'],
         'albumartistsort': ['albumartistsort', 'TSO2', 'soaa', 'ALBUMARTISTSORT', 'TXXX:ALBUMARTISTSORT'],
         'composersort': ['composersort', 'TSOC', 'soco', 'COMPOSERSORT', 'TXXX:COMPOSERSORT'],
+        'performersort': ['performersort', 'TSOP3', 'sope', 'PERFORMERSORT', 'TXXX:PERFORMERSORT'],
+        'discnumber': ['discnumber', 'TPOS', 'disk', 'DISCNUMBER', 'DISC'],
+        'disctotal': ['disctotal', 'DISCTOTAL'],
         'genre': ['genre', 'TCON', '\xa9gen', 'GENRE'],
         'language': ['language', 'TLAN', 'LANGUAGE'],
         'favorite': ['favorite', 'FAVORITE', 'Favorite', 'TXXX:FAVORITE', 'TXXX:Favorite'],
@@ -68,12 +72,42 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
                             normalized[standard_key] = [str(t) for t in text_value if t] if text_value else []
                         else:
                             normalized[standard_key] = [str(text_value)] if text_value else []
-                    elif standard_key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
+                    elif standard_key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
                         # Artist 相關標籤使用反斜線分隔
                         if isinstance(text_value, list):
                             normalized[standard_key] = '\\'.join(str(t) for t in text_value) if text_value else ''
                         else:
                             normalized[standard_key] = str(text_value) if text_value else ''
+                    elif standard_key == 'discnumber':
+                        # Disc 標籤可能是 (1, 2) 元組格式或 "1/2" 字符串格式
+                        if isinstance(text_value, list) and len(text_value) > 0:
+                            disc_value = text_value[0]
+                            if isinstance(disc_value, tuple) and len(disc_value) >= 1:
+                                normalized['discnumber'] = str(disc_value[0]) if disc_value[0] else ''
+                                if len(disc_value) >= 2 and disc_value[1]:
+                                    normalized['disctotal'] = str(disc_value[1])
+                            else:
+                                disc_str = str(disc_value)
+                                if '/' in disc_str:
+                                    parts = disc_str.split('/')
+                                    normalized['discnumber'] = parts[0].strip()
+                                    if len(parts) > 1:
+                                        normalized['disctotal'] = parts[1].strip()
+                                else:
+                                    normalized['discnumber'] = disc_str
+                        elif isinstance(text_value, tuple) and len(text_value) >= 1:
+                            normalized['discnumber'] = str(text_value[0]) if text_value[0] else ''
+                            if len(text_value) >= 2 and text_value[1]:
+                                normalized['disctotal'] = str(text_value[1])
+                        else:
+                            disc_str = str(text_value) if text_value else ''
+                            if '/' in disc_str:
+                                parts = disc_str.split('/')
+                                normalized['discnumber'] = parts[0].strip()
+                                if len(parts) > 1:
+                                    normalized['disctotal'] = parts[1].strip()
+                            else:
+                                normalized['discnumber'] = disc_str
                     else:
                         # 其他標籤轉換為字符串
                         if isinstance(text_value, list):
@@ -84,9 +118,26 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
                     if standard_key == 'genre':
                         # 流派標籤保持為列表格式
                         normalized[standard_key] = [str(v) for v in raw_value if v] if raw_value else []
-                    elif standard_key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
+                    elif standard_key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
                         # Artist 相關標籤使用反斜線分隔
                         normalized[standard_key] = '\\'.join(str(v) for v in raw_value) if raw_value else ''
+                    elif standard_key == 'discnumber':
+                        # Disc 標籤可能是 [(1, 2)] 格式或 ["1/2"] 格式
+                        if len(raw_value) > 0:
+                            disc_value = raw_value[0]
+                            if isinstance(disc_value, tuple) and len(disc_value) >= 1:
+                                normalized['discnumber'] = str(disc_value[0]) if disc_value[0] else ''
+                                if len(disc_value) >= 2 and disc_value[1]:
+                                    normalized['disctotal'] = str(disc_value[1])
+                            else:
+                                disc_str = str(disc_value)
+                                if '/' in disc_str:
+                                    parts = disc_str.split('/')
+                                    normalized['discnumber'] = parts[0].strip()
+                                    if len(parts) > 1:
+                                        normalized['disctotal'] = parts[1].strip()
+                                else:
+                                    normalized['discnumber'] = disc_str
                     elif standard_key.startswith('replaygain_'):
                         # ReplayGain 標籤取第一個值
                         normalized[standard_key] = str(raw_value[0]) if raw_value else ''

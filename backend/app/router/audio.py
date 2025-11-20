@@ -100,7 +100,7 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
         def tag_to_string(value, field_name=None):
             if isinstance(value, list):
                 # Artist 相關字段使用反斜線分隔
-                if field_name in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
+                if field_name in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
                     return '\\'.join(str(v) for v in value) if value else ''
                 else:
                     return ' '.join(str(v) for v in value) if value else ''
@@ -145,6 +145,10 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
             "SortAlbumArtist": tag_to_string(tags.get('albumartistsort', ''), 'albumartistsort'),
             "Composer": tag_to_string(tags.get('composer', ''), 'composer'),
             "SortComposer": tag_to_string(tags.get('composersort', ''), 'composersort'),
+            "Performer": tag_to_string(tags.get('performer', ''), 'performer'),
+            "SortPerformer": tag_to_string(tags.get('performersort', ''), 'performersort'),
+            "DiscNumber": tag_to_string(tags.get('discnumber', ''), 'discnumber'),
+            "DiscTotal": tag_to_string(tags.get('disctotal', ''), 'disctotal'),
             "MainFolder": main_folder,
             "FilePath": file_path,
             "Genre": genre_list,
@@ -171,6 +175,10 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
             "SortAlbumArtist": "",
             "Composer": "",
             "SortComposer": "",
+            "Performer": "",
+            "SortPerformer": "",
+            "DiscNumber": "",
+            "DiscTotal": "",
             "MainFolder": "unknown",
             "FilePath": file_path,
             "Genre": [""],

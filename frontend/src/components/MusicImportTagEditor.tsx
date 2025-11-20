@@ -79,7 +79,8 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     field.toLowerCase().includes('artist') && !field.toLowerCase().includes('album') ? 'artistsort' :
                         field.toLowerCase().includes('album') && !field.toLowerCase().includes('artist') ? 'albumsort' :
                             field.toLowerCase().includes('albumartist') ? 'albumartistsort' :
-                                field.toLowerCase().includes('composer') ? 'composersort' : ''
+                                field.toLowerCase().includes('composer') ? 'composersort' :
+                                    field.toLowerCase().includes('performer') ? 'performersort' : ''
                 if (sortField) {
                     handleInputChange(sortField, data.result)
                 }
@@ -327,6 +328,35 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                     </div>
                 </div>
 
+                {/* 演奏者 */}
+                <div className="flex items-end gap-4">
+                    <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">演奏者</label>
+                        <Input
+                            value={String(tags.performer || '')}
+                            onChange={(e) => handleInputChange('performer', e.target.value)}
+                            placeholder="演奏者名稱"
+                        />
+                    </div>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => convertToPinyin('performer')}
+                        disabled={loading}
+                        className="w-8 h-8 p-0"
+                    >
+                        <ArrowRight className="h-4 w-4" />
+                    </Button>
+                    <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">排序演奏者</label>
+                        <Input
+                            value={String(tags.performersort || '')}
+                            onChange={(e) => handleInputChange('performersort', e.target.value)}
+                            placeholder="排序演奏者"
+                        />
+                    </div>
+                </div>
+
                 {/* 軌道編號 */}
                 <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -343,6 +373,28 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                             value={String(tags.totaltracks || '')}
                             onChange={(e) => handleInputChange('totaltracks', e.target.value)}
                             placeholder="12"
+                        />
+                    </div>
+                </div>
+
+                {/* 碟片編號 */}
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">碟片編號</label>
+                        <Input
+                            value={String(tags.discnumber || '')}
+                            onChange={(e) => handleInputChange('discnumber', e.target.value)}
+                            placeholder="1"
+                            type="number"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">碟片總數</label>
+                        <Input
+                            value={String(tags.disctotal || '')}
+                            onChange={(e) => handleInputChange('disctotal', e.target.value)}
+                            placeholder="2"
+                            type="number"
                         />
                     </div>
                 </div>

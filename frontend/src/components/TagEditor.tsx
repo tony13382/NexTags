@@ -12,6 +12,7 @@ interface Song {
   Album: string;
   AlbumArtist?: string;
   Composer?: string;
+  Performer?: string;
   MainFolder: string;
   FilePath: string;
   Genre: string[];
@@ -23,6 +24,9 @@ interface Song {
   SortAlbum?: string;
   SortAlbumArtist?: string;
   SortComposer?: string;
+  SortPerformer?: string;
+  DiscNumber?: string;
+  DiscTotal?: string;
   Lyrics?: string;
   Comment?: string;
   ReplayGainTrackGain?: string;
@@ -51,11 +55,15 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
         ...song,
         AlbumArtist: song.AlbumArtist || '',
         Composer: song.Composer || '',
+        Performer: song.Performer || '',
         SortTitle: song.SortTitle || '',
         SortArtist: song.SortArtist || '',
         SortAlbum: song.SortAlbum || '',
         SortAlbumArtist: song.SortAlbumArtist || '',
         SortComposer: song.SortComposer || '',
+        SortPerformer: song.SortPerformer || '',
+        DiscNumber: song.DiscNumber || '',
+        DiscTotal: song.DiscTotal || '',
         Lyrics: song.Lyrics || '',
         Comment: song.Comment || '',
         ReplayGainTrackGain: song.ReplayGainTrackGain || '',
@@ -105,7 +113,7 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
 
   const handleInputChange = (field: keyof Song, value: string | string[]) => {
     // 處理多歌手輸入（反斜線分隔）
-    if (field === 'Artist' || field === 'SortArtist' || field === 'AlbumArtist' || field === 'SortAlbumArtist' || field === 'Composer' || field === 'SortComposer') {
+    if (field === 'Artist' || field === 'SortArtist' || field === 'AlbumArtist' || field === 'SortAlbumArtist' || field === 'Composer' || field === 'SortComposer' || field === 'Performer' || field === 'SortPerformer') {
       if (typeof value === 'string' && value.includes('\\')) {
         // 反斜線分隔的多歌手，轉為陣列
         const artists = value.split('\\').map(artist => artist.trim()).filter(artist => artist.length > 0);
@@ -170,7 +178,7 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
     handleInputChange('Cover', '');
   };
 
-  const convertToPinyin = async (field: 'Title' | 'Artist' | 'Album' | 'AlbumArtist' | 'Composer') => {
+  const convertToPinyin = async (field: 'Title' | 'Artist' | 'Album' | 'AlbumArtist' | 'Composer' | 'Performer') => {
     const sourceValue = editedSong[field];
     if (!sourceValue) return;
 
@@ -502,6 +510,55 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
                   value={editedSong.SortComposer || ''}
                   onChange={(e) => handleInputChange('SortComposer', e.target.value)}
                   placeholder="排序作曲家"
+                />
+              </div>
+            </div>
+            <div className="flex items-end bg-white rounded-lg gap-4">
+              <div>
+                <label className="text-gray-500 block mb-1">Performer</label>
+                <Input
+                  value={editedSong.Performer || ''}
+                  onChange={(e) => handleInputChange('Performer', e.target.value)}
+                  placeholder="演奏者"
+                />
+              </div>
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => convertToPinyin('Performer')}
+                  disabled={loading}
+                  className="w-8 h-8 p-0"
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <div>
+                <label className="text-gray-500 block mb-1">SortPerformer</label>
+                <Input
+                  value={editedSong.SortPerformer || ''}
+                  onChange={(e) => handleInputChange('SortPerformer', e.target.value)}
+                  placeholder="排序演奏者"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 bg-white rounded-lg">
+              <div>
+                <label className="text-gray-500 block mb-1">Disc Number</label>
+                <Input
+                  value={editedSong.DiscNumber || ''}
+                  onChange={(e) => handleInputChange('DiscNumber', e.target.value)}
+                  placeholder="碟片編號"
+                  type="number"
+                />
+              </div>
+              <div>
+                <label className="text-gray-500 block mb-1">Disc Total</label>
+                <Input
+                  value={editedSong.DiscTotal || ''}
+                  onChange={(e) => handleInputChange('DiscTotal', e.target.value)}
+                  placeholder="碟片總數"
+                  type="number"
                 />
               </div>
             </div>

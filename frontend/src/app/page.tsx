@@ -22,8 +22,12 @@ interface Song {
   SortAlbum?: string;
   SortAlbumArtist?: string;
   SortComposer?: string;
+  SortPerformer?: string;
   AlbumArtist?: string;
   Composer?: string;
+  Performer?: string;
+  DiscNumber?: string;
+  DiscTotal?: string;
   Lyrics?: string;
   Comment?: string;
   JfId?: string;
@@ -121,11 +125,15 @@ export default function Home() {
             album: song.Album,
             albumartist: song.AlbumArtist || '',
             composer: song.Composer || '',
+            performer: song.Performer || '',
             titlesort: song.SortTitle,
             artistsort: song.SortArtist,
             albumsort: song.SortAlbum,
             albumartistsort: song.SortAlbumArtist || '',
             composersort: song.SortComposer || '',
+            performersort: song.SortPerformer || '',
+            discnumber: song.DiscNumber || '',
+            disctotal: song.DiscTotal || '',
             genre: song.Genre, // 保持陣列格式
             language: song.Language,
             favorite: song.Favorite,

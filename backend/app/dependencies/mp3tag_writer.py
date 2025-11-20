@@ -3,7 +3,7 @@ from mutagen.mp4 import MP4
 from mutagen.flac import FLAC
 from mutagen.mp3 import MP3
 from mutagen.oggvorbis import OggVorbis
-from mutagen.id3 import TIT2, TPE1, TALB, TPE2, TCOM, TDRC, TRCK, TPOS, TSOT, TSOP, TSOA, TSO2, TSOC, COMM, USLT
+from mutagen.id3 import TIT2, TPE1, TALB, TPE2, TPE3, TCOM, TDRC, TRCK, TPOS, TSOT, TSOP, TSOA, TSO2, TSOC, COMM, USLT
 import os
 
 from app.dependencies.logger import logger
@@ -41,6 +41,7 @@ def write_mp4_tags(audio, tags_dict):
         'album': '\xa9alb',
         'albumartist': 'aART',
         'composer': '\xa9wrt',
+        'performer': '\xa9prf',
         'date': '\xa9day',
         'year': '\xa9day',
         'track': 'trkn',
@@ -53,12 +54,29 @@ def write_mp4_tags(audio, tags_dict):
         'albumsort': 'soal',
         'albumartistsort': 'soaa',
         'composersort': 'soco',
+        'performersort': 'sope',
     }
     
+    # 處理 discnumber 和 disctotal
+    discnumber = tags_dict.get('discnumber', '')
+    disctotal = tags_dict.get('disctotal', '')
+    if discnumber:
+        try:
+            disc_num = int(discnumber) if discnumber else 0
+            disc_tot = int(disctotal) if disctotal else 0
+            if disc_num > 0:
+                audio['disk'] = [(disc_num, disc_tot)]
+        except (ValueError, TypeError):
+            pass
+
     for key, value in tags_dict.items():
+        # 跳過 discnumber 和 disctotal，因為已經在上面處理了
+        if key in ['discnumber', 'disctotal']:
+            continue
+
         if key in tag_mapping:
             mp4_key = tag_mapping[key]
-            if key in ['track', 'disc']:
+            if key == 'track':
                 if isinstance(value, str) and '/' in value:
                     current, total = value.split('/', 1)
                     audio[mp4_key] = [(int(current), int(total))]
@@ -75,7 +93,7 @@ def write_mp4_tags(audio, tags_dict):
                         audio[mp4_key] = [str(validated_genres)]
                 else:
                     logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
-            elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
+            elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
                 # 處理多歌手格式（反斜線分隔）
                 if isinstance(value, str) and '\\' in value:
                     artists = [artist.strip() for artist in value.split('\\') if artist.strip()]
@@ -90,7 +108,18 @@ def write_mp4_tags(audio, tags_dict):
 
 def write_flac_tags(audio, tags_dict):
     """寫入 FLAC 格式的標籤"""
+    # 處理 discnumber 和 disctotal
+    discnumber = tags_dict.get('discnumber', '')
+    disctotal = tags_dict.get('disctotal', '')
+    if discnumber:
+        audio['DISCNUMBER'] = [str(discnumber)]
+    if disctotal:
+        audio['DISCTOTAL'] = [str(disctotal)]
+
     for key, value in tags_dict.items():
+        # 跳過 discnumber 和 disctotal，因為已經在上面處理了
+        if key in ['discnumber', 'disctotal']:
+            continue
         if key == 'genre':
             # 處理流派列表格式並驗證
             validated_genres = validate_genres(value)
@@ -102,7 +131,7 @@ def write_flac_tags(audio, tags_dict):
                     audio[key.upper()] = [str(validated_genres)]
             else:
                 logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
-        elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
+        elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
             # 處理多歌手格式（反斜線分隔）
             if isinstance(value, str) and '\\' in value:
                 artists = [artist.strip() for artist in value.split('\\') if artist.strip()]
@@ -117,7 +146,18 @@ def write_flac_tags(audio, tags_dict):
 
 def write_ogg_tags(audio, tags_dict):
     """寫入 OGG 格式的標籤"""
+    # 處理 discnumber 和 disctotal
+    discnumber = tags_dict.get('discnumber', '')
+    disctotal = tags_dict.get('disctotal', '')
+    if discnumber:
+        audio['DISCNUMBER'] = [str(discnumber)]
+    if disctotal:
+        audio['DISCTOTAL'] = [str(disctotal)]
+
     for key, value in tags_dict.items():
+        # 跳過 discnumber 和 disctotal，因為已經在上面處理了
+        if key in ['discnumber', 'disctotal']:
+            continue
         if key == 'genre':
             # 處理流派列表格式並驗證
             validated_genres = validate_genres(value)
@@ -129,7 +169,7 @@ def write_ogg_tags(audio, tags_dict):
                     audio[key.upper()] = [str(validated_genres)]
             else:
                 logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
-        elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
+        elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
             # 處理多歌手格式（反斜線分隔）
             if isinstance(value, str) and '\\' in value:
                 artists = [artist.strip() for artist in value.split('\\') if artist.strip()]
@@ -144,18 +184,18 @@ def write_ogg_tags(audio, tags_dict):
 
 def write_mp3_tags(audio, tags_dict):
     """寫入 MP3 格式的標籤"""
-    from mutagen.id3 import TCON
-    
+    from mutagen.id3 import TCON, TXXX
+
     tag_mapping = {
         'title': TIT2,
         'artist': TPE1,
         'album': TALB,
         'albumartist': TPE2,
         'composer': TCOM,
+        'performer': TPE3,
         'date': TDRC,
         'year': TDRC,
         'track': TRCK,
-        'disc': TPOS,
         'titlesort': TSOT,
         'artistsort': TSOP,
         'albumsort': TSOA,
@@ -163,8 +203,24 @@ def write_mp3_tags(audio, tags_dict):
         'composersort': TSOC,
         'genre': TCON,
     }
-    
+
+    # 處理 discnumber 和 disctotal
+    discnumber = tags_dict.get('discnumber', '')
+    disctotal = tags_dict.get('disctotal', '')
+    if discnumber or disctotal:
+        try:
+            disc_num = int(discnumber) if discnumber else 0
+            disc_tot = int(disctotal) if disctotal else 0
+            if disc_num > 0 or disc_tot > 0:
+                disc_str = f"{disc_num}/{disc_tot}" if disc_tot > 0 else str(disc_num)
+                audio.tags['TPOS'] = TPOS(encoding=3, text=disc_str)
+        except (ValueError, TypeError):
+            pass
+
     for key, value in tags_dict.items():
+        # 跳過 discnumber 和 disctotal，因為已經在上面處理了
+        if key in ['discnumber', 'disctotal']:
+            continue
         if key == 'comment':
             # 對於評論，使用 COMM 框架
             audio.tags['COMM::eng'] = COMM(encoding=3, lang='eng', desc='', text=str(value))
@@ -182,7 +238,16 @@ def write_mp3_tags(audio, tags_dict):
                     audio.tags['TCON'] = TCON(encoding=3, text=[str(validated_genres)])
             else:
                 logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
-        elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort']:
+        elif key == 'performersort':
+            # Performer sort 使用 TXXX 框架
+            if isinstance(value, str) and '\\' in value:
+                performers = [p.strip() for p in value.split('\\') if p.strip()]
+                audio.tags['TXXX:PERFORMERSORT'] = TXXX(encoding=3, desc='PERFORMERSORT', text=performers)
+            elif isinstance(value, list):
+                audio.tags['TXXX:PERFORMERSORT'] = TXXX(encoding=3, desc='PERFORMERSORT', text=[str(v) for v in value if v])
+            else:
+                audio.tags['TXXX:PERFORMERSORT'] = TXXX(encoding=3, desc='PERFORMERSORT', text=[str(value)])
+        elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer']:
             # 處理多歌手格式（反斜線分隔）
             tag_class = tag_mapping[key]
             if isinstance(value, str) and '\\' in value:
