@@ -220,30 +220,46 @@ async def extract_music_tags(request: ExtractTagsRequest):
     try:
         if request.file_id not in import_sessions:
             raise HTTPException(status_code=404, detail="找不到檔案ID")
-        
+
         session = import_sessions[request.file_id]
         temp_path = session.get('temp_path')
-        
+
         if not temp_path or not os.path.exists(temp_path):
             raise HTTPException(status_code=404, detail="暫存檔案不存在")
-        
+
         # 讀取標籤
         tags = read_audio_tags(temp_path)
-        
+
         if not tags:
             raise HTTPException(status_code=500, detail="無法讀取檔案標籤")
-        
+
+        # 自動生成 ReplayGain
+        try:
+            logger.info(f"自動生成 ReplayGain: {temp_path}")
+            success, message = generate_replaygain(temp_path)
+            if success:
+                logger.info(f"ReplayGain 生成成功: {message}")
+                # 重新讀取標籤以獲取 ReplayGain 值
+                tags = read_audio_tags(temp_path)
+                import_sessions[request.file_id]['replaygain_applied'] = True
+            else:
+                logger.warning(f"ReplayGain 生成失敗（非致命錯誤）: {message}")
+                import_sessions[request.file_id]['replaygain_applied'] = False
+        except Exception as rg_error:
+            logger.warning(f"ReplayGain 生成失敗（非致命錯誤）: {str(rg_error)}")
+            import_sessions[request.file_id]['replaygain_applied'] = False
+
         # 生成建議的檔案名稱
         track_num = tags.get('tracknumber', '1')
         title = tags.get('title', '未知標題')
-        
+
         # 格式化軌道編號
         if isinstance(track_num, list):
             track_num = track_num[0] if track_num else '1'
         track_num = str(track_num).split('/')[0].zfill(2)  # 取得軌道編號並補零
-        
+
         suggested_filename = f"{track_num} - {title}.{session.get('format', 'flac')}"
-        
+
         # 更新匯入狀態
         update_import_status(
             request.file_id,
@@ -251,16 +267,16 @@ async def extract_music_tags(request: ExtractTagsRequest):
             extracted_tags=tags,
             suggested_filename=suggested_filename
         )
-        
+
         logger.info(f"標籤提取成功: {temp_path}")
-        
+
         return ExtractTagsResponse(
             success=True,
             message="標籤提取成功",
             tags=tags,
             suggested_filename=suggested_filename
         )
-        
+
     except Exception as e:
         logger.error(f"標籤提取失敗: {str(e)}")
         if request.file_id in import_sessions:
