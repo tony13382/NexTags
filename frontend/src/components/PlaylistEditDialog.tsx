@@ -10,10 +10,12 @@ interface SmartPlaylist {
     name: string;
     base_folder: string;
     filter_tags: string[];
+    exclude_tags: string[];
     filter_language: string | null;
     filter_favorites: boolean | null;
     sort_method: string;
     filter_tags_display: string[];
+    exclude_tags_display: string[];
     filter_language_display: string;
     filter_favorites_display: string;
     sort_method_display: string;
@@ -50,6 +52,7 @@ export default function PlaylistEditDialog({
                     name: playlist.name,
                     base_folder: playlist.base_folder,
                     filter_tags: [...(playlist.filter_tags || [])],
+                    exclude_tags: [...(playlist.exclude_tags || [])],
                     filter_language: playlist.filter_language,
                     filter_favorites: playlist.filter_favorites,
                     sort_method: playlist.sort_method || 'creation_time'
@@ -60,6 +63,7 @@ export default function PlaylistEditDialog({
                     name: '',
                     base_folder: '',
                     filter_tags: [],
+                    exclude_tags: [],
                     filter_language: null,
                     filter_favorites: null,
                     sort_method: 'creation_time'
@@ -119,6 +123,20 @@ export default function PlaylistEditDialog({
         }
 
         handleInputChange('filter_tags', newTags);
+    };
+
+    const handleExcludeTagToggle = (tag: string) => {
+        const currentTags = editedPlaylist.exclude_tags || [];
+        const isSelected = currentTags.includes(tag);
+
+        let newTags: string[];
+        if (isSelected) {
+            newTags = currentTags.filter(t => t !== tag);
+        } else {
+            newTags = [...currentTags, tag];
+        }
+
+        handleInputChange('exclude_tags', newTags);
     };
 
     const handleSave = async () => {
@@ -195,6 +213,29 @@ export default function PlaylistEditDialog({
                                         onClick={() => handleTagToggle(tag)}
                                         className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${isSelected
                                             ? 'bg-gray-800 text-white'
+                                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                            }`}
+                                    >
+                                        {tag}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Exclude Tags (排除標籤) */}
+                    <div>
+                        <label className="text-sm font-medium text-gray-700 block mb-3">Exclude Tags (排除標籤)</label>
+                        <div className="flex flex-wrap gap-2">
+                            {availableTags.map((tag) => {
+                                const isSelected = editedPlaylist.exclude_tags?.includes(tag) || false;
+                                return (
+                                    <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={() => handleExcludeTagToggle(tag)}
+                                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${isSelected
+                                            ? 'bg-red-600 text-white'
                                             : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                                             }`}
                                     >

@@ -12,10 +12,12 @@ interface SmartPlaylist {
   name: string;
   base_folder: string;
   filter_tags: string[];
+  exclude_tags: string[];
   filter_language: string | null;
   filter_favorites: boolean | null;
   sort_method: string;
   filter_tags_display: string[];
+  exclude_tags_display: string[];
   filter_language_display: string;
   filter_favorites_display: string;
   sort_method_display: string;
@@ -43,7 +45,7 @@ export default function PlaylistsPage() {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [generatingAll, setGeneratingAll] = useState(false);
-  const [sortField, setSortField] = useState<'name' | null>(null);
+  const [sortField, setSortField] = useState<'name' | null>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
@@ -456,6 +458,9 @@ export default function PlaylistsPage() {
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
                       FilterTags (篩選)
                     </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
+                      ExcludeTags (排除)
+                    </th>
                     <th className="px-4 py-3 text-center text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
                       BaseFolder
                     </th>
@@ -494,6 +499,22 @@ export default function PlaylistsPage() {
                           </span>
                         ) : (
                           <span className="text-gray-500">不篩選</span>
+                        )}
+                      </td>
+                      <td className="space-x-2 space-y-2 px-4 py-3 text-gray-900 max-w-[200px] min-w-[120px]">
+                        {playlist.exclude_tags_display.length > 0 ? (
+                          <span className="space-x-2 space-y-2">
+                            {playlist.exclude_tags_display.map((tag, tagIndex) => (
+                              <span
+                                key={tagIndex}
+                                className="inline-block px-2 py-1 text-xs bg-red-100 text-red-800 rounded"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">不排除</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-center text-gray-900 max-w-[200px] min-w-[100px]">

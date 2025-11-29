@@ -41,6 +41,7 @@ class Database:
                         base_folder VARCHAR(255) NOT NULL,
                         filter_language VARCHAR(50),
                         filter_tags TEXT[],
+                        exclude_tags TEXT[],
                         sort_by VARCHAR(50) DEFAULT 'file_creation_time',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

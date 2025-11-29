@@ -62,7 +62,7 @@ def load_playlists() -> List[Dict[str, Any]]:
         with db.get_connection() as conn:
             with db.get_cursor(conn) as cur:
                 cur.execute("""
-                    SELECT id, name, base_folder, filter_language, filter_tags, sort_by,
+                    SELECT id, name, base_folder, filter_language, filter_tags, exclude_tags, sort_by,
                            created_at, updated_at
                     FROM SmartPlaylists
                     ORDER BY id
@@ -80,6 +80,11 @@ def load_playlists() -> List[Dict[str, Any]]:
                         playlist['created_at'] = playlist['created_at'].isoformat()
                     if playlist.get('updated_at'):
                         playlist['updated_at'] = playlist['updated_at'].isoformat()
+                    # 確保列表欄位不為 None，轉換為空列表
+                    if playlist.get('filter_tags') is None:
+                        playlist['filter_tags'] = []
+                    if playlist.get('exclude_tags') is None:
+                        playlist['exclude_tags'] = []
                     playlists.append(playlist)
 
                 return playlists
@@ -103,7 +108,7 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
                     cur.execute("""
                         UPDATE SmartPlaylists
                         SET name = %s, base_folder = %s, filter_language = %s,
-                            filter_tags = %s, sort_by = %s, updated_at = CURRENT_TIMESTAMP
+                            filter_tags = %s, exclude_tags = %s, sort_by = %s, updated_at = CURRENT_TIMESTAMP
                         WHERE id = %s
                         RETURNING id
                     """, (
@@ -111,20 +116,22 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
                         playlist['base_folder'],
                         playlist.get('filter_language'),
                         playlist.get('filter_tags', []),
+                        playlist.get('exclude_tags', []),
                         sort_value,
                         playlist['id']
                     ))
                 else:
                     # 建立新播放清單
                     cur.execute("""
-                        INSERT INTO SmartPlaylists (name, base_folder, filter_language, filter_tags, sort_by)
-                        VALUES (%s, %s, %s, %s, %s)
+                        INSERT INTO SmartPlaylists (name, base_folder, filter_language, filter_tags, exclude_tags, sort_by)
+                        VALUES (%s, %s, %s, %s, %s, %s)
                         RETURNING id
                     """, (
                         playlist['name'],
                         playlist['base_folder'],
                         playlist.get('filter_language'),
                         playlist.get('filter_tags', []),
+                        playlist.get('exclude_tags', []),
                         sort_value
                     ))
 
@@ -203,12 +210,25 @@ def filter_songs_by_playlist(playlist: Dict[str, Any], audio_files: List[str]) -
                 file_genre = tags.get('genre', [])
                 if isinstance(file_genre, str):
                     file_genre = [file_genre]
-                
+
                 # 檢查是否包含任一指定標籤
                 has_required_tag = any(
                     tag in file_genre for tag in playlist['filter_tags']
                 )
                 if not has_required_tag:
+                    continue
+
+            # 檢查排除標籤條件
+            if playlist.get('exclude_tags'):
+                file_genre = tags.get('genre', [])
+                if isinstance(file_genre, str):
+                    file_genre = [file_genre]
+
+                # 檢查是否包含任一需要排除的標籤
+                has_excluded_tag = any(
+                    tag in file_genre for tag in playlist['exclude_tags']
+                )
+                if has_excluded_tag:
                     continue
             
             # 檢查我的最愛過濾條件
@@ -374,6 +394,11 @@ def enrich_playlist_data(playlist_data: Dict[str, Any], config: Dict[str, Any]) 
     # 加入標籤顯示名稱
     enriched_data["filter_tags_display"] = get_tags_display_names(
         playlist_data.get("filter_tags", []), config
+    )
+
+    # 加入排除標籤顯示名稱
+    enriched_data["exclude_tags_display"] = get_tags_display_names(
+        playlist_data.get("exclude_tags", []), config
     )
 
     # 加入我的最愛顯示名稱

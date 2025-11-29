@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh_tw">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.sand.min.css"
+    >
+    <title>MeowLu Music Station</title>
+    <!--
+      FIX: This internal style block defines robust CSS to ensure
+      the content fills the viewport height and is perfectly centered.
+    -->
+    <style>
+      /* Ensure full viewport height for reliable vertical centering */
+      html, body {
+        height: 100%;
+      }
+
+      /* Use flex properties on the main element for vertical and horizontal centering */
+      main.container {
+        display: flex;
+        justify-content: center; /* Center horizontally */
+        align-items: center; /* Center vertically */
+        min-height: 100vh; /* Use vh for reliable full height */
+        padding: 1rem; /* Add padding for mobile safety */
+      }
+
+      /* Dedicated class for width control, ensuring it's 100% width up to the max-width */
+      .content-wrapper {
+        max-width: 560px;
+        width: 100%;
+        /* The flex parent (main.container) now handles the centering, so margin:auto is redundant here but harmless. */
+      }
+
+      /* Pico styling fix: use role="button" on <a> tags */
+      a[role="button"] {
+        width: 100%;
+      }
+
+      h2{
+        text-align: center;
+        color: #49463F;
+        margin-bottom:0.25rem;
+        letter-spacing:0.15rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      The 'container' class combined with the CSS above ensures the layout is centered.
+      Removed the confusing inline styles from 'main'.
+    -->
+    <main class="container">
+      <!--
+        Using the new 'content-wrapper' class to apply the max-width constraint.
+        The 'margin:auto' style from the original has been removed as the flex parent handles centering.
+      -->
+      <div class="grid content-wrapper" style="grid-template-columns: 1fr; gap:0.25rem; padding:1.25rem;">
+        <article style="padding:1.25rem 1.5rem 0.5rem 1.5rem;">
+          <h2>💽 音樂後台</h2>
+          <div class="grid" style="grid-template-columns: 1fr; gap:0.75rem; margin:1rem 0rem;">
+            <!-- Changed type="button" to Pico's preferred role="button" -->
+            <a href="/music-a/" role="button">A 古典樂</a>
+            <a href="/music-b/" role="button">B 流行樂</a>
+          </div>
+        </article>
+        <article style="padding:1.25rem 1.5rem 0.5rem 1.5rem;">
+          <h2>🗃️ 音樂管理</h2>
+          <div class="grid" style="grid-template-columns: 1fr; gap:0.75rem; margin:1rem 0rem;">
+            <!-- Changed type="button" to Pico's preferred role="button" -->
+            <a href="https://musictool.lianglu.uk/" role="button">Tag Editor</a>
+          </div>
+        </article>
+      </div>
+    </main>
+  </body>
+</html>
