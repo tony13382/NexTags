@@ -434,8 +434,8 @@ async def check_artist_folder(request: CheckArtistRequest):
         if not base_folder:
             raise HTTPException(status_code=400, detail="找不到目標資料夾")
 
-        # 解析多歌手（反斜線分隔）
-        artist_names = [name.strip() for name in request.artist_name.split('\\') if name.strip()]
+        # 解析多歌手（分號分隔）
+        artist_names = [name.strip() for name in request.artist_name.split(';') if name.strip()]
 
         if not artist_names:
             raise HTTPException(status_code=400, detail="歌手名稱不能為空")
@@ -599,7 +599,7 @@ async def process_album_folder(request: ProcessAlbumRequest):
             raise HTTPException(status_code=404, detail="暫存檔案不存在")
         
         # 處理多歌手情況
-        artist_names = [name.strip() for name in request.artist_name.split('\\') if name.strip()]
+        artist_names = [name.strip() for name in request.artist_name.split(';') if name.strip()]
         primary_artist = artist_names[0] if artist_names else request.artist_name
 
         # 建構專輯資料夾路徑 (使用主要歌手: /Music/basefolder/Music/PrimaryArtist/Album)

@@ -99,9 +99,9 @@ def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dic
         # 輔助函數：將標籤值轉為字串
         def tag_to_string(value, field_name=None):
             if isinstance(value, list):
-                # Artist 相關字段使用反斜線分隔
+                # Artist 相關字段使用分號分隔
                 if field_name in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
-                    return '\\'.join(str(v) for v in value) if value else ''
+                    return ';'.join(str(v) for v in value) if value else ''
                 else:
                     return ' '.join(str(v) for v in value) if value else ''
             return str(value) if value else ''

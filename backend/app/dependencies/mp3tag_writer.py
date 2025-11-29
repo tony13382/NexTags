@@ -94,9 +94,9 @@ def write_mp4_tags(audio, tags_dict):
                 else:
                     logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
             elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
-                # 處理多歌手格式（反斜線分隔）
-                if isinstance(value, str) and '\\' in value:
-                    artists = [artist.strip() for artist in value.split('\\') if artist.strip()]
+                # 處理多歌手格式（分號分隔）
+                if isinstance(value, str) and ';' in value:
+                    artists = [artist.strip() for artist in value.split(';') if artist.strip()]
                     audio[mp4_key] = artists
                 elif isinstance(value, list):
                     audio[mp4_key] = [str(v) for v in value if v]
@@ -132,9 +132,9 @@ def write_flac_tags(audio, tags_dict):
             else:
                 logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
         elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
-            # 處理多歌手格式（反斜線分隔）
-            if isinstance(value, str) and '\\' in value:
-                artists = [artist.strip() for artist in value.split('\\') if artist.strip()]
+            # 處理多歌手格式（分號分隔）
+            if isinstance(value, str) and ';' in value:
+                artists = [artist.strip() for artist in value.split(';') if artist.strip()]
                 audio[key.upper()] = artists
             elif isinstance(value, list):
                 audio[key.upper()] = [str(v) for v in value if v]
@@ -170,9 +170,9 @@ def write_ogg_tags(audio, tags_dict):
             else:
                 logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
         elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
-            # 處理多歌手格式（反斜線分隔）
-            if isinstance(value, str) and '\\' in value:
-                artists = [artist.strip() for artist in value.split('\\') if artist.strip()]
+            # 處理多歌手格式（分號分隔）
+            if isinstance(value, str) and ';' in value:
+                artists = [artist.strip() for artist in value.split(';') if artist.strip()]
                 audio[key.upper()] = artists
             elif isinstance(value, list):
                 audio[key.upper()] = [str(v) for v in value if v]
@@ -240,18 +240,18 @@ def write_mp3_tags(audio, tags_dict):
                 logger.warning(f"流派 '{value}' 不在支援清單中，跳過寫入")
         elif key == 'performersort':
             # Performer sort 使用 TXXX 框架
-            if isinstance(value, str) and '\\' in value:
-                performers = [p.strip() for p in value.split('\\') if p.strip()]
+            if isinstance(value, str) and ';' in value:
+                performers = [p.strip() for p in value.split(';') if p.strip()]
                 audio.tags['TXXX:PERFORMERSORT'] = TXXX(encoding=3, desc='PERFORMERSORT', text=performers)
             elif isinstance(value, list):
                 audio.tags['TXXX:PERFORMERSORT'] = TXXX(encoding=3, desc='PERFORMERSORT', text=[str(v) for v in value if v])
             else:
                 audio.tags['TXXX:PERFORMERSORT'] = TXXX(encoding=3, desc='PERFORMERSORT', text=[str(value)])
         elif key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer']:
-            # 處理多歌手格式（反斜線分隔）
+            # 處理多歌手格式（分號分隔）
             tag_class = tag_mapping[key]
-            if isinstance(value, str) and '\\' in value:
-                artists = [artist.strip() for artist in value.split('\\') if artist.strip()]
+            if isinstance(value, str) and ';' in value:
+                artists = [artist.strip() for artist in value.split(';') if artist.strip()]
                 audio.tags[tag_class.__name__] = tag_class(encoding=3, text=artists)
             elif isinstance(value, list):
                 audio.tags[tag_class.__name__] = tag_class(encoding=3, text=[str(v) for v in value if v])

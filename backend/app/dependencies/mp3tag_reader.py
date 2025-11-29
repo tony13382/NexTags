@@ -73,9 +73,9 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
                         else:
                             normalized[standard_key] = [str(text_value)] if text_value else []
                     elif standard_key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
-                        # Artist 相關標籤使用反斜線分隔
+                        # Artist 相關標籤使用分號分隔
                         if isinstance(text_value, list):
-                            normalized[standard_key] = '\\'.join(str(t) for t in text_value) if text_value else ''
+                            normalized[standard_key] = ';'.join(str(t) for t in text_value) if text_value else ''
                         else:
                             normalized[standard_key] = str(text_value) if text_value else ''
                     elif standard_key == 'discnumber':
@@ -119,8 +119,8 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
                         # 流派標籤保持為列表格式
                         normalized[standard_key] = [str(v) for v in raw_value if v] if raw_value else []
                     elif standard_key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
-                        # Artist 相關標籤使用反斜線分隔
-                        normalized[standard_key] = '\\'.join(str(v) for v in raw_value) if raw_value else ''
+                        # Artist 相關標籤使用分號分隔
+                        normalized[standard_key] = ';'.join(str(v) for v in raw_value) if raw_value else ''
                     elif standard_key == 'discnumber':
                         # Disc 標籤可能是 [(1, 2)] 格式或 ["1/2"] 格式
                         if len(raw_value) > 0:
