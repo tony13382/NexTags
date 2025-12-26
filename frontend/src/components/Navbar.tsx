@@ -1,10 +1,8 @@
-'use client';
-
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { Link, useLocation } from 'react-router-dom';
 
 export default function Navbar() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
 
   return (
     <nav className="bg-white shadow-sm border-b">
@@ -15,7 +13,7 @@ export default function Navbar() {
           </div>
           <div className="hidden sm:flex sm:space-x-4 items-center">
             <Link
-              href="/"
+              to="/"
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === '/'
                 ? 'bg-gray-600 text-white'
                 : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
@@ -24,7 +22,7 @@ export default function Navbar() {
               歌曲管理
             </Link>
             <Link
-              href="/playlists"
+              to="/playlists"
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === '/playlists'
                 ? 'bg-gray-600 text-white'
                 : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
@@ -33,7 +31,7 @@ export default function Navbar() {
               播放清單管理
             </Link>
             <Link
-              href="/cache"
+              to="/cache"
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === '/cache'
                 ? 'bg-gray-600 text-white'
                 : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
@@ -42,7 +40,7 @@ export default function Navbar() {
               快取管理
             </Link>
             <Link
-              href="/settings"
+              to="/settings"
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === '/settings'
                 ? 'bg-gray-600 text-white'
                 : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'

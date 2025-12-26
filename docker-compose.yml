@@ -31,15 +31,14 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile.nginx
     ports:
-      - "4000:3000"
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - "4000:80"
     restart: unless-stopped
     networks:
       - app-network
+    depends_on:
+      - backend
 
   redis:
     image: redis:7-alpine
