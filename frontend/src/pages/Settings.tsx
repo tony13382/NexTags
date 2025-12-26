@@ -32,7 +32,7 @@ export default function Settings() {
 
   const fetchConfig = async () => {
     try {
-      const response = await api.get('config');
+      const response = await api.get('config/');
       const result = await response.json();
       if (result.success) {
         setConfig(result.data);
@@ -54,21 +54,21 @@ export default function Settings() {
 
     try {
       // 更新 supported_tags
-      await api.post('config', {
+      await api.post('config/', {
         config_key: 'supported_tags',
         config_value: editingTags,
         description: '支援的標籤列表'
       });
 
       // 更新 supported_languages
-      await api.post('config', {
+      await api.post('config/', {
         config_key: 'supported_languages',
         config_value: editingLanguages,
         description: '支援的語言代碼對應'
       });
 
       // 更新 allow_folders
-      await api.post('config', {
+      await api.post('config/', {
         config_key: 'allow_folders',
         config_value: editingFolders,
         description: '允許的音樂資料夾'

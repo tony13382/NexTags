@@ -82,7 +82,7 @@ export default function Home() {
       if (selectedLanguage) params.append('filterLanguage', selectedLanguage);
       if (showFavorites) params.append('filterFavorite', 'true');
 
-      const response = await fetch(`${api.url('audios')}?${params}`);
+      const response = await fetch(`${api.url('audios/')}?${params}`);
       const data: ApiResponse = await response.json();
 
       setSongs(data.audio_files);

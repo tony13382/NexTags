@@ -5,11 +5,7 @@ export const api = {
   // 構建完整的 API URL
   url: (endpoint: string) => {
     // 移除開頭的 / 以避免雙斜線
-    let path = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint
-    // 確保路徑以 / 結尾（避免 FastAPI 的 307 重定向）
-    if (!path.endsWith('/')) {
-      path += '/'
-    }
+    const path = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint
     return `${API_BASE_URL}/${path}`
   },
 
