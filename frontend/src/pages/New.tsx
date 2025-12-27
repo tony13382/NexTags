@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import MusicImportTagEditor from '@/components/MusicImportTagEditor'
 import { api } from '@/lib/api'
 
@@ -62,6 +63,8 @@ export default function NewMusicPage() {
     const [finalFilename, setFinalFilename] = useState('')
     const [error, setError] = useState<string | null>(null)
     const [progress, setProgress] = useState<number>(0)
+    const [isDragging, setIsDragging] = useState(false)
+    const [isArtistImageDragging, setIsArtistImageDragging] = useState(false)
 
     // 載入基礎資料夾選項
     useEffect(() => {
@@ -70,8 +73,7 @@ export default function NewMusicPage() {
 
     const fetchBaseFolders = async () => {
         try {
-            const response = await api.get('tags/baseFolders')
-            const data = await response.json()
+            const data = await api.get('tags/baseFolders')
             if (data.success) {
                 const folders = data.base_folders.map((folder: string) => ({
                     value: folder,
@@ -88,9 +90,8 @@ export default function NewMusicPage() {
         }
     }
 
-    // 檔案上傳處理
-    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0]
+    // 處理文件（通用函數）
+    const processFile = async (file: File) => {
         if (!file || !selectedBaseFolder) return
 
         setIsLoading(true)
@@ -102,13 +103,7 @@ export default function NewMusicPage() {
             formData.append('file', file)
             formData.append('base_folder', selectedBaseFolder)
 
-            const response = await api.postFormData('music-import/upload', formData)
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.detail || '檔案上傳失敗')
-            }
+            const data = await api.postFormData('music-import/upload', formData)
 
             setCurrentSession(data)
             setProgress(20)
@@ -128,17 +123,49 @@ export default function NewMusicPage() {
         }
     }
 
+    // 檔案上傳處理
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        if (file) {
+            await processFile(file)
+        }
+    }
+
+    // 拖放處理
+    const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        setIsDragging(true)
+    }
+
+    const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        setIsDragging(false)
+    }
+
+    const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        setIsDragging(false)
+
+        const file = event.dataTransfer.files[0]
+        if (file) {
+            // 驗證檔案格式
+            const validExtensions = ['.mp3', '.flac', '.ogg', '.m4a']
+            const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
+
+            if (!validExtensions.includes(fileExtension)) {
+                setError(`不支援的檔案格式: ${fileExtension}。支援格式: ${validExtensions.join(', ')}`)
+                return
+            }
+
+            await processFile(file)
+        }
+    }
+
     // 轉換檔案
     const convertFile = async (fileId: string) => {
         try {
             setProgress(30)
-            const response = await api.post('music-import/convert', { file_id: fileId })
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.detail || '檔案轉換失敗')
-            }
+            const data = await api.post('music-import/convert', { file_id: fileId })
 
             // 更新當前會話狀態
             await refreshSessionStatus(fileId)
@@ -157,13 +184,7 @@ export default function NewMusicPage() {
     const extractTags = async (fileId: string) => {
         try {
             setProgress(50)
-            const response = await api.post('music-import/extract-tags', { file_id: fileId })
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.detail || '標籤提取失敗')
-            }
+            const data = await api.post('music-import/extract-tags', { file_id: fileId })
 
             // 更新當前會話狀態
             await refreshSessionStatus(fileId)
@@ -183,16 +204,10 @@ export default function NewMusicPage() {
         if (!currentSession) return
 
         try {
-            const response = await api.post('music-import/update-tags', {
+            const data = await api.post('music-import/update-tags', {
                 file_id: currentSession.file_id,
                 tags: tags
             })
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.detail || '標籤更新失敗')
-            }
 
             // 更新當前會話狀態
             await refreshSessionStatus(currentSession.file_id)
@@ -217,16 +232,10 @@ export default function NewMusicPage() {
     // 檢查歌手資料夾
     const checkArtist = async (fileId: string, artistName: string, albumName: string) => {
         try {
-            const response = await api.post('music-import/check-artist', {
+            const data = await api.post('music-import/check-artist', {
                 file_id: fileId,
                 artist_name: artistName
             })
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.detail || '檢查歌手資料夾失敗')
-            }
 
             // 更新當前會話狀態
             await refreshSessionStatus(fileId)
@@ -250,8 +259,7 @@ export default function NewMusicPage() {
     }
 
     // 上傳歌手圖片
-    const handleArtistImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0]
+    const uploadArtistImage = async (file: File) => {
         if (!file || !currentSession || !artistName) return
 
         try {
@@ -260,13 +268,7 @@ export default function NewMusicPage() {
             formData.append('artist_name', artistName)
             formData.append('image', file)
 
-            const response = await api.postFormData('music-import/upload-artist-image', formData)
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.detail || '歌手圖片上傳失敗')
-            }
+            const data = await api.postFormData('music-import/upload-artist-image', formData)
 
             setShowArtistImageDialog(false)
 
@@ -279,21 +281,52 @@ export default function NewMusicPage() {
         }
     }
 
+    const handleArtistImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        if (file) {
+            await uploadArtistImage(file)
+        }
+    }
+
+    // 歌手圖片拖放處理
+    const handleArtistImageDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        setIsArtistImageDragging(true)
+    }
+
+    const handleArtistImageDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        setIsArtistImageDragging(false)
+    }
+
+    const handleArtistImageDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        setIsArtistImageDragging(false)
+
+        const file = event.dataTransfer.files[0]
+        if (file) {
+            // 驗證檔案格式
+            const validExtensions = ['.jpg', '.jpeg', '.png']
+            const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
+
+            if (!validExtensions.includes(fileExtension)) {
+                setError(`不支援的圖片格式: ${fileExtension}。支援格式: ${validExtensions.join(', ')}`)
+                return
+            }
+
+            await uploadArtistImage(file)
+        }
+    }
+
     // 處理專輯
     const processAlbum = async (fileId: string, artistName: string, albumName: string) => {
         try {
             setProgress(80)
-            const response = await api.post('music-import/process-album', {
+            const data = await api.post('music-import/process-album', {
                 file_id: fileId,
                 artist_name: artistName,
                 album_name: albumName
             })
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.detail || '專輯處理失敗')
-            }
 
             // 更新當前會話狀態
             await refreshSessionStatus(fileId)
@@ -315,16 +348,10 @@ export default function NewMusicPage() {
     const finalizeFile = async (fileId: string, filename: string) => {
         try {
             setProgress(90)
-            const response = await api.post('music-import/finalize', {
+            const data = await api.post('music-import/finalize', {
                 file_id: fileId,
                 final_filename: filename
             })
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.detail || '檔案準備失敗')
-            }
 
             // 更新當前會話狀態
             await refreshSessionStatus(fileId)
@@ -342,15 +369,9 @@ export default function NewMusicPage() {
 
         try {
             setIsLoading(true)
-            const response = await api.post('music-import/confirm-move', {
+            const data = await api.post('music-import/confirm-move', {
                 file_id: currentSession.file_id
             })
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.detail || '檔案移動失敗')
-            }
 
             // 更新當前會話狀態
             await refreshSessionStatus(currentSession.file_id)
@@ -377,10 +398,9 @@ export default function NewMusicPage() {
     // 刷新會話狀態
     const refreshSessionStatus = async (fileId: string) => {
         try {
-            const response = await api.get('music-import/status', { file_id: fileId })
-            const data = await response.json()
+            const data = await api.get('music-import/status', { file_id: fileId })
 
-            if (response.ok && data.success) {
+            if (data.success) {
                 setCurrentSession(prev => ({
                     ...prev,
                     ...data.file_info,
@@ -455,28 +475,62 @@ export default function NewMusicPage() {
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium mb-2">目標資料夾</label>
-                                <select
-                                    value={selectedBaseFolder}
-                                    onChange={(e) => setSelectedBaseFolder(e.target.value)}
-                                    className="w-full p-2 border border-gray-300 rounded-md"
-                                >
-                                    {baseFolders.map((folder) => (
-                                        <option key={folder.value} value={folder.value}>
-                                            {folder.label}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Select value={selectedBaseFolder} onValueChange={setSelectedBaseFolder}>
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="選擇目標資料夾" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {baseFolders.map((folder) => (
+                                            <SelectItem key={folder.value} value={folder.value}>
+                                                {folder.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             <div>
                                 <label className="block text-sm font-medium mb-2">選擇音樂檔案</label>
-                                <input
-                                    type="file"
-                                    accept=".mp3,.flac,.ogg,.m4a"
-                                    onChange={handleFileUpload}
-                                    disabled={isLoading}
-                                    className="w-full p-2 border border-gray-300 rounded-md"
-                                />
+                                <div
+                                    onDragOver={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={handleDrop}
+                                    className={`
+                                        relative border-2 border-dashed rounded-lg p-8 text-center transition-colors
+                                        ${isDragging
+                                            ? 'border-gray-600 bg-gray-50'
+                                            : 'border-gray-300 bg-white'
+                                        }
+                                        ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                                    `}
+                                >
+                                    <input
+                                        type="file"
+                                        accept=".mp3,.flac,.ogg,.m4a"
+                                        onChange={handleFileUpload}
+                                        disabled={isLoading}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        id="file-upload"
+                                    />
+                                    <div className="space-y-2">
+                                        <div className="text-gray-600">
+                                            <p className="text-sm">拖放音樂檔案到此處</p>
+                                            <p className="text-xs text-gray-500 mt-1">或</p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            disabled={isLoading}
+                                            onClick={() => document.getElementById('file-upload')?.click()}
+                                            className="pointer-events-none"
+                                        >
+                                            選擇檔案
+                                        </Button>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            支援格式: MP3, FLAC, OGG, M4A
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </CardContent>
@@ -594,12 +648,44 @@ export default function NewMusicPage() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
-                        <input
-                            type="file"
-                            accept=".jpg,.jpeg,.png"
-                            onChange={handleArtistImageUpload}
-                            className="w-full p-2 border border-gray-300 rounded-md"
-                        />
+                        <div
+                            onDragOver={handleArtistImageDragOver}
+                            onDragLeave={handleArtistImageDragLeave}
+                            onDrop={handleArtistImageDrop}
+                            className={`
+                                relative border-2 border-dashed rounded-lg p-8 text-center transition-colors
+                                ${isArtistImageDragging
+                                    ? 'border-gray-600 bg-gray-50'
+                                    : 'border-gray-300 bg-white'
+                                }
+                                cursor-pointer
+                            `}
+                        >
+                            <input
+                                type="file"
+                                accept=".jpg,.jpeg,.png"
+                                onChange={handleArtistImageUpload}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                id="artist-image-upload"
+                            />
+                            <div className="space-y-2">
+                                <div className="text-gray-600">
+                                    <p className="text-sm">拖放圖片到此處</p>
+                                    <p className="text-xs text-gray-500 mt-1">或</p>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => document.getElementById('artist-image-upload')?.click()}
+                                    className="pointer-events-none"
+                                >
+                                    選擇檔案
+                                </Button>
+                                <p className="text-xs text-gray-500 mt-2">
+                                    支援格式: JPG, JPEG, PNG
+                                </p>
+                            </div>
+                        </div>
                         <div className="flex space-x-4 justify-end">
                             <Button
                                 onClick={() => {

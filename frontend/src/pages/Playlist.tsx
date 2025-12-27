@@ -49,8 +49,7 @@ export default function PlaylistDetailPage() {
     const fetchPlaylistSongs = async () => {
         try {
             setLoading(true);
-            const response = await api.get(`playlists/${playlistId}/songs`, { sort_by: sortBy });
-            const data: PlaylistSongsResponse = await response.json();
+            const data: PlaylistSongsResponse = await api.get(`playlists/${playlistId}/songs`, { sort_by: sortBy });
 
             if (data.success) {
                 setPlaylistData(data);
@@ -69,7 +68,8 @@ export default function PlaylistDetailPage() {
     const handleDownloadM3U = async () => {
         try {
             setDownloadLoading(true);
-            const response = await api.get(`playlists/${playlistId}/download-m3u`);
+            // 使用原生 fetch 來下載 blob
+            const response = await fetch(api.url(`playlists/${playlistId}/download-m3u`));
 
             if (response.ok) {
                 // 取得檔案內容並觸發下載

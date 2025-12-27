@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "6000:8000"
+    volumes:
+      # 掛載源代碼以支援熱重載
+      - ./backend:/app
+      - ${MUSIC_ROOT_PATH}:/Music:rw
+      - app-data:/app/data
+    env_file:
+      - ./.env
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      # 開發模式：啟用詳細日誌
+      - LOG_LEVEL=DEBUG
+    restart: unless-stopped
+    networks:
+      - app-network
+    depends_on:
+      - redis
+      - postgres
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "4000:3000"  # Vite 開發伺服器端口（參考 vite.config.ts）
+    volumes:
+      # 掛載源代碼以支援 HMR
+      - ./frontend:/app
+      # 排除 node_modules（使用容器內的）
+      - /app/node_modules
+    environment:
+      # Docker 環境標記，讓 Vite 知道在容器內運行
+      - DOCKER_ENV=true
+      # API URL - 使用相對路徑以觸發 Vite proxy
+      - VITE_API_URL=/api
+    restart: unless-stopped
+    networks:
+      - app-network
+    depends_on:
+      - backend
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  app-data:
+  redis-data:
+  postgres-data:

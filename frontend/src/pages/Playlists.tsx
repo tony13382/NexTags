@@ -5,6 +5,7 @@ import { Plus, ListMusic, RefreshCcw, Edit, Trash2, Download, FileText, FolderPl
 import PlaylistEditDialog from '@/components/PlaylistEditDialog';
 import TaskStatusDialog from '@/components/TaskStatusDialog';
 import { api } from '@/lib/api';
+import { useGenerateAllM3U } from '@/hooks/useGenerateAllM3U';
 
 interface SmartPlaylist {
   id: number;
@@ -15,6 +16,7 @@ interface SmartPlaylist {
   filter_language: string | null;
   filter_favorites: boolean | null;
   sort_method: string;
+  is_system_level: boolean;
   filter_tags_display: string[];
   exclude_tags_display: string[];
   filter_language_display: string;
@@ -33,20 +35,20 @@ export default function PlaylistsPage() {
   const navigate = useNavigate();
   const [playlists, setPlaylists] = useState<SmartPlaylist[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingPlaylist, setEditingPlaylist] = useState<SmartPlaylist | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deletingPlaylist, setDeletingPlaylist] = useState<SmartPlaylist | null>(null);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
-  const [generatingAll, setGeneratingAll] = useState(false);
   const [sortField, setSortField] = useState<'name' | null>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // 使用批量生成 M3U 的 hook
+  const { generatingAll, successMessage, error, handleGenerateAllM3U, setSuccessMessage, setError } = useGenerateAllM3U();
 
   useEffect(() => {
     fetchPlaylists();
@@ -55,8 +57,7 @@ export default function PlaylistsPage() {
   const fetchPlaylists = async () => {
     try {
       setLoading(true);
-      const response = await api.get('playlists/');
-      const data: PlaylistsResponse = await response.json();
+      const data: PlaylistsResponse = await api.get('playlists/');
 
       if (data.success) {
         setPlaylists(data.data || []);
@@ -84,9 +85,7 @@ export default function PlaylistsPage() {
 
       if (id === null) {
         // 新增播放清單
-        const response = await api.post('playlists/', updatedPlaylist);
-
-        const data = await response.json();
+        const data = await api.post('playlists/', updatedPlaylist);
 
         if (data.success) {
           // 重新載入播放清單
@@ -103,9 +102,7 @@ export default function PlaylistsPage() {
         }
       } else {
         // 更新播放清單
-        const response = await api.put(`playlists/${id}`, updatedPlaylist);
-
-        const data = await response.json();
+        const data = await api.put(`playlists/${id}`, updatedPlaylist);
 
         if (data.success) {
           // 重新載入播放清單
@@ -195,9 +192,7 @@ export default function PlaylistsPage() {
       setError(null);
       setSuccessMessage(null);
 
-      const response = await api.delete(`playlists/${deletingId}`);
-
-      const data = await response.json();
+      const data = await api.delete(`playlists/${deletingId}`);
 
       if (data.success) {
         // 重新載入播放清單
@@ -251,9 +246,7 @@ export default function PlaylistsPage() {
       setError(null);
       setSuccessMessage(null);
 
-      const response = await api.post(`playlists/${playlist.id}/generate-m3u`);
-
-      const data = await response.json();
+      const data = await api.post(`playlists/${playlist.id}/generate-m3u`);
 
       if (data.success) {
         setSuccessMessage(`成功生成 M3U 檔案到 ${data.file_path}`);
@@ -264,77 +257,6 @@ export default function PlaylistsPage() {
     } catch (err) {
       setError('網路錯誤，請稍後再試');
       console.error('Error generating M3U file:', err);
-    }
-  };
-
-  const pollTaskStatus = async () => {
-    try {
-      const response = await api.get('playlists/generate-all-m3u/status');
-      const statusData = await response.json();
-
-      if (statusData.status === 'running') {
-        // 更新進度訊息
-        const progressText = statusData.total > 0
-          ? `${statusData.message} (${statusData.progress}/${statusData.total})`
-          : statusData.message;
-        setSuccessMessage(`${progressText}`);
-
-        // 繼續輪詢
-        setTimeout(pollTaskStatus, 1000);
-      } else if (statusData.status === 'completed') {
-        setGeneratingAll(false);
-
-        if (statusData.result) {
-          const { success_count, error_count, total_count } = statusData.result;
-          let message = `批量生成完成！總共 ${total_count} 個播放清單：成功 ${success_count} 個`;
-          if (error_count > 0) {
-            message += `，失敗 ${error_count} 個`;
-          }
-
-          setSuccessMessage(message);
-          setTimeout(() => setSuccessMessage(null), 8000);
-
-          // 如果有錯誤，在控制台記錄詳細信息
-          if (statusData.result.errors && statusData.result.errors.length > 0) {
-            console.error('批量生成錯誤:', statusData.result.errors);
-          }
-        }
-      } else if (statusData.status === 'error') {
-        setGeneratingAll(false);
-        setError(statusData.message || '批量生成 M3U 檔案失敗');
-      } else if (statusData.status === 'idle') {
-        // 如果狀態是 idle，可能是任務已經完成很久了
-        setGeneratingAll(false);
-      }
-    } catch (err) {
-      console.error('Error polling task status:', err);
-      // 繼續輪詢，即使發生錯誤
-      setTimeout(pollTaskStatus, 2000);
-    }
-  };
-
-  const handleGenerateAllM3U = async () => {
-    try {
-      setError(null);
-      setSuccessMessage(null);
-      setGeneratingAll(true);
-
-      const response = await api.post('playlists/generate-all-m3u');
-
-      const data = await response.json();
-
-      if (data.success) {
-        // 任務已啟動，開始輪詢狀態
-        setSuccessMessage('批量生成任務已啟動...');
-        setTimeout(pollTaskStatus, 1000);
-      } else {
-        setGeneratingAll(false);
-        setError(data.message || '啟動批量生成任務失敗');
-      }
-    } catch (err) {
-      setGeneratingAll(false);
-      setError('網路錯誤，請稍後再試');
-      console.error('Error generating all M3U files:', err);
     }
   };
 
@@ -371,7 +293,7 @@ export default function PlaylistsPage() {
           <Button
             onClick={handleGenerateAllM3U}
             disabled={generatingAll}
-            className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400"
+            variant="outline"
           >
             {generatingAll ? (
               <RefreshCcw className="w-4 h-4 animate-spin" />
@@ -382,10 +304,10 @@ export default function PlaylistsPage() {
           </Button>
           <Button
             onClick={handleAddPlaylist}
-            className="bg-gray-600 hover:bg-gray-700 text-white"
+            variant="default"
           >
             <Plus className="w-4 h-4" />
-            Add Playlist
+            新增播放清單
           </Button>
         </div>
       </div>
@@ -454,98 +376,98 @@ export default function PlaylistsPage() {
                 <tbody>
                   {getSortedPlaylists().map((playlist) => {
                     return (
-                    <tr key={playlist.id} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-900 font-medium max-w-[240px] min-w-[100px]">
-                        {playlist.name}
-                      </td>
-                      <td className="space-x-2 space-y-2 px-4 py-3 text-gray-900 max-w-[200px] min-w-[120px]">
-                        {playlist.filter_tags_display.length > 0 ? (
-                          <span className="space-x-2 space-y-2">
-                            {playlist.filter_tags_display.map((tag, tagIndex) => (
-                              <span
-                                key={tagIndex}
-                                className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-900 rounded"
-                              >
-                                {tag}
-                              </span>
-                            ))}
+                      <tr key={playlist.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3 text-gray-900 font-medium max-w-[240px] min-w-[100px]">
+                          {playlist.name}
+                        </td>
+                        <td className="space-x-2 space-y-2 px-4 py-3 text-gray-900 max-w-[200px] min-w-[120px]">
+                          {playlist.filter_tags_display.length > 0 ? (
+                            <span className="space-x-2 space-y-2">
+                              {playlist.filter_tags_display.map((tag, tagIndex) => (
+                                <span
+                                  key={tagIndex}
+                                  className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-900 rounded"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">不篩選</span>
+                          )}
+                        </td>
+                        <td className="space-x-2 space-y-2 px-4 py-3 text-gray-900 max-w-[200px] min-w-[120px]">
+                          {playlist.exclude_tags_display.length > 0 ? (
+                            <span className="space-x-2 space-y-2">
+                              {playlist.exclude_tags_display.map((tag, tagIndex) => (
+                                <span
+                                  key={tagIndex}
+                                  className="inline-block px-2 py-1 text-xs bg-red-100 text-red-800 rounded"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">不排除</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-900 max-w-[200px] min-w-[100px]">
+                          {playlist.base_folder}
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-90 max-w-[200px] min-w-[100px]0">
+                          <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
+                            {playlist.filter_language_display}
                           </span>
-                        ) : (
-                          <span className="text-gray-500">不篩選</span>
-                        )}
-                      </td>
-                      <td className="space-x-2 space-y-2 px-4 py-3 text-gray-900 max-w-[200px] min-w-[120px]">
-                        {playlist.exclude_tags_display.length > 0 ? (
-                          <span className="space-x-2 space-y-2">
-                            {playlist.exclude_tags_display.map((tag, tagIndex) => (
-                              <span
-                                key={tagIndex}
-                                className="inline-block px-2 py-1 text-xs bg-red-100 text-red-800 rounded"
-                              >
-                                {tag}
-                              </span>
-                            ))}
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-900 max-w-[200px] min-w-[100px]">
+                          <span className="inline-block px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">
+                            {playlist.filter_favorites_display}
                           </span>
-                        ) : (
-                          <span className="text-gray-500">不排除</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-900 max-w-[200px] min-w-[100px]">
-                        {playlist.base_folder}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-90 max-w-[200px] min-w-[100px]0">
-                        <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
-                          {playlist.filter_language_display}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-900 max-w-[200px] min-w-[100px]">
-                        <span className="inline-block px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">
-                          {playlist.filter_favorites_display}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-900 max-w-[150px] min-w-[120px]">
-                        <span className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                          {playlist.sort_method_display}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 max-w-[280px] min-w-[100px] text-center">
-                        <button
-                          onClick={() => navigate(`/playlist/${playlist.id}`)}
-                          className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
-                          title="查看播放清單"
-                        >
-                          <ListMusic className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleEditPlaylist(playlist)}
-                          className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
-                          title="編輯播放清單"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDownloadM3U(playlist)}
-                          className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
-                          title="下載 M3U 檔案"
-                        >
-                          <Download className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleGenerateM3U(playlist)}
-                          className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
-                          title="生成 M3U 檔案到檔案系統"
-                        >
-                          <FileText className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeletePlaylist(playlist)}
-                          className="m-1 inline-flex items-center p-2 text-xs text-red-800 rounded border border-red-200 hover:bg-red-100"
-                          title="刪除播放清單"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-900 max-w-[150px] min-w-[120px]">
+                          <span className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                            {playlist.sort_method_display}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 max-w-[280px] min-w-[100px] text-center">
+                          <button
+                            onClick={() => navigate(`/playlist/${playlist.id}`)}
+                            className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
+                            title="查看播放清單"
+                          >
+                            <ListMusic className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleEditPlaylist(playlist)}
+                            className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
+                            title="編輯播放清單"
+                          >
+                            <Edit className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDownloadM3U(playlist)}
+                            className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
+                            title="下載 M3U 檔案"
+                          >
+                            <Download className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleGenerateM3U(playlist)}
+                            className="m-1 inline-flex items-center p-2 text-xs text-gray-800 rounded border hover:bg-gray-100"
+                            title="生成 M3U 檔案到檔案系統"
+                          >
+                            <FileText className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeletePlaylist(playlist)}
+                            className="m-1 inline-flex items-center p-2 text-xs text-red-800 rounded border border-red-200 hover:bg-red-100"
+                            title="刪除播放清單"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </td>
+                      </tr>
                     );
                   })}
                 </tbody>

@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
+import { FolderInput, Languages, Tag, Trash2, Download, Upload } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
 
 interface Config {
   supported_tags: string[];
@@ -13,7 +17,6 @@ export default function Settings() {
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // 編輯狀態
   const [editingTags, setEditingTags] = useState<string[]>([]);
@@ -32,17 +35,22 @@ export default function Settings() {
 
   const fetchConfig = async () => {
     try {
-      const response = await api.get('config/');
-      const result = await response.json();
+      const result = await api.get('config/');
       if (result.success) {
-        setConfig(result.data);
-        setEditingTags(result.data.supported_tags);
-        setEditingLanguages(result.data.supported_languages);
-        setEditingFolders(result.data.allow_folders);
+        // 提供默認值，處理空配置的情況
+        const configData = {
+          supported_tags: result.data.supported_tags || [],
+          supported_languages: result.data.supported_languages || {},
+          allow_folders: result.data.allow_folders || []
+        };
+        setConfig(configData);
+        setEditingTags(configData.supported_tags);
+        setEditingLanguages(configData.supported_languages);
+        setEditingFolders(configData.allow_folders);
       }
     } catch (error) {
       console.error('Failed to fetch config:', error);
-      setMessage({ type: 'error', text: '載入設定失敗' });
+      toast.error('載入設定失敗');
     } finally {
       setLoading(false);
     }
@@ -50,7 +58,6 @@ export default function Settings() {
 
   const saveConfig = async () => {
     setSaving(true);
-    setMessage(null);
 
     try {
       // 更新 supported_tags
@@ -74,14 +81,74 @@ export default function Settings() {
         description: '允許的音樂資料夾'
       });
 
-      setMessage({ type: 'success', text: '設定已儲存' });
+      toast.success('設定已儲存');
       await fetchConfig();
     } catch (error) {
       console.error('Failed to save config:', error);
-      setMessage({ type: 'error', text: '儲存設定失敗' });
+      toast.error('儲存設定失敗');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleExportConfig = () => {
+    try {
+      const exportData = {
+        supported_tags: editingTags,
+        supported_languages: editingLanguages,
+        allow_folders: editingFolders,
+        export_date: new Date().toISOString(),
+        version: '1.0'
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `config_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('設定已匯出');
+    } catch (error) {
+      console.error('Failed to export config:', error);
+      toast.error('匯出設定失敗');
+    }
+  };
+
+  const handleImportConfig = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const importedConfig = JSON.parse(content);
+
+        // 驗證必要的欄位
+        if (!importedConfig.supported_tags || !importedConfig.supported_languages || !importedConfig.allow_folders) {
+          toast.error('配置檔案格式不正確');
+          return;
+        }
+
+        // 應用匯入的設定
+        setEditingTags(importedConfig.supported_tags);
+        setEditingLanguages(importedConfig.supported_languages);
+        setEditingFolders(importedConfig.allow_folders);
+
+        toast.success('設定已匯入，請點擊「儲存設定」以套用');
+      } catch (error) {
+        console.error('Failed to import config:', error);
+        toast.error('匯入設定失敗，請確認檔案格式正確');
+      }
+    };
+
+    reader.readAsText(file);
+    // 清空 input，讓同一個檔案可以再次選擇
+    event.target.value = '';
   };
 
   if (loading) {
@@ -99,213 +166,248 @@ export default function Settings() {
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-gray-900">系統設定</h1>
-          <button
-            onClick={() => navigate('/')}
-            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-          >
-            返回首頁
-          </button>
+          <div className="flex gap-2">
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleImportConfig}
+              className="hidden"
+              id="import-config"
+            />
+            <Button
+              variant="outline"
+              onClick={() => document.getElementById('import-config')?.click()}
+              className="flex items-center gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              匯入設定
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExportConfig}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              匯出設定
+            </Button>
+          </div>
         </div>
 
-        {message && (
-          <div
-            className={`mb-4 p-4 rounded ${
-              message.type === 'success'
-                ? 'bg-green-100 text-green-800'
-                : 'bg-red-100 text-red-800'
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
-
-        {/* 支援的標籤 */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">支援的標籤</h2>
-          <div className="space-y-2 mb-4">
-            {editingTags.map((tag, index) => (
-              <div key={index} className="flex items-center gap-2">
+        <Tabs defaultValue="tags">
+          <TabsList className='grid grid-cols-3 mb-4'>
+            <TabsTrigger value="tags"><Tag className='size-4 me-2' />支援的標籤</TabsTrigger>
+            <TabsTrigger value="languages"><Languages className='size-4 me-2' />支援的語言</TabsTrigger>
+            <TabsTrigger value="folders"><FolderInput className='size-4 me-2' />允許的資料夾</TabsTrigger>
+          </TabsList>
+          <TabsContent value="tags">
+            {/* 支援的標籤 */}
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <h2 className="flex gap-2 items-center text-xl font-semibold mb-4">
+                <Tag className='size-6' />
+                支援的標籤
+              </h2>
+              <div className="space-y-2 mb-4">
+                {editingTags.map((tag, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={tag}
+                      onChange={(e) => {
+                        const newTags = [...editingTags];
+                        newTags[index] = e.target.value;
+                        setEditingTags(newTags);
+                      }}
+                      className="flex-1 px-3 py-2 border rounded"
+                    />
+                    <button
+                      onClick={() => {
+                        setEditingTags(editingTags.filter((_, i) => i !== index));
+                      }}
+                      className="px-3 py-2 text-gray-500 hover:text-red-500 rounded"
+                    >
+                      <Trash2 className='size-4' />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  value={tag}
-                  onChange={(e) => {
-                    const newTags = [...editingTags];
-                    newTags[index] = e.target.value;
-                    setEditingTags(newTags);
-                  }}
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  placeholder="新增標籤"
                   className="flex-1 px-3 py-2 border rounded"
                 />
                 <button
                   onClick={() => {
-                    setEditingTags(editingTags.filter((_, i) => i !== index));
+                    if (newTag.trim()) {
+                      setEditingTags([...editingTags, newTag.trim()]);
+                      setNewTag('');
+                    }
                   }}
-                  className="px-3 py-2 text-gray-500 hover:text-red-500 rounded"
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
                 >
-                  ✕
+                  新增
                 </button>
               </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={newTag}
-              onChange={(e) => setNewTag(e.target.value)}
-              placeholder="新增標籤"
-              className="flex-1 px-3 py-2 border rounded"
-            />
-            <button
-              onClick={() => {
-                if (newTag.trim()) {
-                  setEditingTags([...editingTags, newTag.trim()]);
-                  setNewTag('');
-                }
-              }}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
-            >
-              新增
-            </button>
-          </div>
-        </div>
-
-        {/* 支援的語言 */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">支援的語言</h2>
-          <div className="space-y-2 mb-4">
-            {Object.entries(editingLanguages).map(([code, name]) => (
-              <div key={code} className="flex items-center gap-2">
+            </div>
+          </TabsContent>
+          <TabsContent value="languages">
+            {/* 支援的語言 */}
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <h2 className="flex gap-2 items-center text-xl font-semibold mb-4">
+                <Languages className='size-6' />
+                支援的語言
+              </h2>
+              <div className="space-y-2 mb-4">
+                {Object.entries(editingLanguages).map(([code, name]) => (
+                  <div key={code} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={code}
+                      disabled
+                      className="w-24 px-3 py-2 border rounded bg-gray-100"
+                    />
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => {
+                        setEditingLanguages({
+                          ...editingLanguages,
+                          [code]: e.target.value
+                        });
+                      }}
+                      className="flex-1 px-3 py-2 border rounded"
+                    />
+                    <button
+                      onClick={() => {
+                        const newLangs = { ...editingLanguages };
+                        delete newLangs[code];
+                        setEditingLanguages(newLangs);
+                      }}
+                      className="px-3 py-2 text-gray-500 hover:text-red-500 rounded"
+                    >
+                      <Trash2 className='size-4' />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  value={code}
-                  disabled
-                  className="w-24 px-3 py-2 border rounded bg-gray-100"
+                  value={newLangCode}
+                  onChange={(e) => setNewLangCode(e.target.value)}
+                  placeholder="語言代碼"
+                  className="w-24 px-3 py-2 border rounded"
                 />
                 <input
                   type="text"
-                  value={name}
-                  onChange={(e) => {
-                    setEditingLanguages({
-                      ...editingLanguages,
-                      [code]: e.target.value
-                    });
-                  }}
+                  value={newLangName}
+                  onChange={(e) => setNewLangName(e.target.value)}
+                  placeholder="語言名稱"
                   className="flex-1 px-3 py-2 border rounded"
                 />
                 <button
                   onClick={() => {
-                    const newLangs = { ...editingLanguages };
-                    delete newLangs[code];
-                    setEditingLanguages(newLangs);
+                    if (newLangCode.trim() && newLangName.trim()) {
+                      setEditingLanguages({
+                        ...editingLanguages,
+                        [newLangCode.trim()]: newLangName.trim()
+                      });
+                      setNewLangCode('');
+                      setNewLangName('');
+                    }
                   }}
-                  className="px-3 py-2 text-gray-500 hover:text-red-500 rounded"
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
                 >
-                  ✕
+                  新增
                 </button>
               </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={newLangCode}
-              onChange={(e) => setNewLangCode(e.target.value)}
-              placeholder="語言代碼 (如: eng)"
-              className="w-40 px-3 py-2 border rounded"
-            />
-            <input
-              type="text"
-              value={newLangName}
-              onChange={(e) => setNewLangName(e.target.value)}
-              placeholder="語言名稱"
-              className="flex-1 px-3 py-2 border rounded"
-            />
-            <button
-              onClick={() => {
-                if (newLangCode.trim() && newLangName.trim()) {
-                  setEditingLanguages({
-                    ...editingLanguages,
-                    [newLangCode.trim()]: newLangName.trim()
-                  });
-                  setNewLangCode('');
-                  setNewLangName('');
-                }
-              }}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
-            >
-              新增
-            </button>
-          </div>
-        </div>
-
-        {/* 允許的資料夾 */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">允許的音樂資料夾</h2>
-          <div className="space-y-2 mb-4">
-            {editingFolders.map((folder, index) => (
-              <div key={index} className="flex items-center gap-2">
+            </div>
+          </TabsContent>
+          <TabsContent value="folders">
+            {/* 允許的資料夾 */}
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <h2 className="flex gap-2 items-center text-xl font-semibold mb-4">
+                <FolderInput className='size-6' />
+                允許的音樂資料夾
+              </h2>
+              <div className="space-y-2 mb-4">
+                {editingFolders.map((folder, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={folder}
+                      onChange={(e) => {
+                        const newFolders = [...editingFolders];
+                        newFolders[index] = e.target.value;
+                        setEditingFolders(newFolders);
+                      }}
+                      className="flex-1 px-3 py-2 border rounded"
+                    />
+                    <button
+                      onClick={() => {
+                        setEditingFolders(editingFolders.filter((_, i) => i !== index));
+                      }}
+                      className="px-3 py-2 text-gray-500 hover:text-red-500 rounded"
+                    >
+                      <Trash2 className='size-4' />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  value={folder}
-                  onChange={(e) => {
-                    const newFolders = [...editingFolders];
-                    newFolders[index] = e.target.value;
-                    setEditingFolders(newFolders);
-                  }}
+                  value={newFolder}
+                  onChange={(e) => setNewFolder(e.target.value)}
+                  placeholder="新增資料夾"
                   className="flex-1 px-3 py-2 border rounded"
                 />
                 <button
                   onClick={() => {
-                    setEditingFolders(editingFolders.filter((_, i) => i !== index));
+                    if (newFolder.trim()) {
+                      setEditingFolders([...editingFolders, newFolder.trim()]);
+                      setNewFolder('');
+                    }
                   }}
-                  className="px-3 py-2 text-gray-500 hover:text-red-500 rounded"
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
                 >
-                  ✕
+                  新增
                 </button>
               </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={newFolder}
-              onChange={(e) => setNewFolder(e.target.value)}
-              placeholder="新增資料夾"
-              className="flex-1 px-3 py-2 border rounded"
-            />
-            <button
-              onClick={() => {
-                if (newFolder.trim()) {
-                  setEditingFolders([...editingFolders, newFolder.trim()]);
-                  setNewFolder('');
-                }
-              }}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
-            >
-              新增
-            </button>
-          </div>
-        </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+
+
+
+
+
+
 
         {/* 儲存按鈕 */}
         <div className="flex justify-end gap-4">
-          <button
+          <Button
+            variant="outline"
             onClick={() => {
               setEditingTags(config?.supported_tags || []);
               setEditingLanguages(config?.supported_languages || {});
               setEditingFolders(config?.allow_folders || []);
-              setMessage(null);
+              toast.info('設定已重置');
             }}
-            className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            className="flex-1 px-6 py-2"
           >
             重置
-          </button>
-          <button
+          </Button>
+          <Button
+            variant='success'
             onClick={saveConfig}
             disabled={saving}
-            className="px-6 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-400"
+            className="flex-2 px-6 py-2"
           >
             {saving ? '儲存中...' : '儲存設定'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

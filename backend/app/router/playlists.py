@@ -63,7 +63,7 @@ def load_playlists() -> List[Dict[str, Any]]:
             with db.get_cursor(conn) as cur:
                 cur.execute("""
                     SELECT id, name, base_folder, filter_language, filter_tags, exclude_tags, sort_by,
-                           created_at, updated_at
+                           is_system_level, created_at, updated_at
                     FROM SmartPlaylists
                     ORDER BY id
                 """)
@@ -108,7 +108,7 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
                     cur.execute("""
                         UPDATE SmartPlaylists
                         SET name = %s, base_folder = %s, filter_language = %s,
-                            filter_tags = %s, exclude_tags = %s, sort_by = %s, updated_at = CURRENT_TIMESTAMP
+                            filter_tags = %s, exclude_tags = %s, sort_by = %s, is_system_level = %s, updated_at = CURRENT_TIMESTAMP
                         WHERE id = %s
                         RETURNING id
                     """, (
@@ -118,13 +118,14 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
                         playlist.get('filter_tags', []),
                         playlist.get('exclude_tags', []),
                         sort_value,
+                        playlist.get('is_system_level', False),
                         playlist['id']
                     ))
                 else:
                     # 建立新播放清單
                     cur.execute("""
-                        INSERT INTO SmartPlaylists (name, base_folder, filter_language, filter_tags, exclude_tags, sort_by)
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        INSERT INTO SmartPlaylists (name, base_folder, filter_language, filter_tags, exclude_tags, sort_by, is_system_level)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                     """, (
                         playlist['name'],
@@ -132,7 +133,8 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
                         playlist.get('filter_language'),
                         playlist.get('filter_tags', []),
                         playlist.get('exclude_tags', []),
-                        sort_value
+                        sort_value,
+                        playlist.get('is_system_level', False)
                     ))
 
                 result = cur.fetchone()
@@ -710,18 +712,24 @@ def generate_m3u_content(playlist: Dict[str, Any], playlist_name: str, use_relat
     else:
         # 預設使用檔案建立時間排序（新→舊）
         sorted_songs = sort_songs_by_creation_time(filtered_songs)
-    
+
     logger.info(f"找到 {len(sorted_songs)} 首歌曲，生成 M3U 檔案")
-    
+
     # 生成 M3U 內容
     m3u_content = "#EXTM3U\n"
     m3u_content += f"# Playlist: {playlist_name}\n"
     m3u_content += f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-    
-    # M3U 檔案將保存在 /Music/{base_folder}/Playlist/ 目錄
+
+    # 根據 is_system_level 決定 M3U 檔案的保存位置
     if use_relative_paths:
-        base_folder = playlist['base_folder']
-        m3u_folder = os.path.join("/Music", base_folder, "Playlist")
+        is_system_level = playlist.get('is_system_level', False)
+        if is_system_level:
+            # 系統等級：保存在 /Music/Playlist/
+            m3u_folder = os.path.join("/Music", "Playlist")
+        else:
+            # 非系統等級：保存在 /Music/{base_folder}/Playlist/
+            base_folder = playlist['base_folder']
+            m3u_folder = os.path.join("/Music", base_folder, "Playlist")
     
     for file_path in sorted_songs:
         try:
@@ -793,12 +801,18 @@ async def generate_playlist_m3u_to_file(
         
         playlist_name = playlist.get('name', f'playlist_{id}')
         base_folder = playlist.get('base_folder', '')
-        
+        is_system_level = playlist.get('is_system_level', False)
+
         # 生成 M3U 內容（檔案系統生成使用相對路徑）
         m3u_content = generate_m3u_content(playlist, playlist_name, use_relative_paths=True)
-        
-        # 建立輸出目錄路徑：/Music/{BaseFolder}/Playlist/
-        playlist_dir = os.path.join("/Music", base_folder, "Playlist")
+
+        # 根據 is_system_level 決定輸出目錄路徑
+        if is_system_level:
+            # 系統等級：保存在 /Music/Playlist/
+            playlist_dir = os.path.join("/Music", "Playlist")
+        else:
+            # 非系統等級：保存在 /Music/{BaseFolder}/Playlist/
+            playlist_dir = os.path.join("/Music", base_folder, "Playlist")
         
         # 確保目錄存在
         os.makedirs(playlist_dir, exist_ok=True)
@@ -928,9 +942,16 @@ def _perform_batch_m3u_generation():
         playlist_dirs = set()
         for playlist in playlists_data:
             base_folder = playlist.get('base_folder', '')
-            if base_folder:
+            is_system_level = playlist.get('is_system_level', False)
+            if is_system_level:
+                # 系統等級：清理 /Music/Playlist/
+                playlist_dir = os.path.join("/Music", "Playlist")
+            elif base_folder:
+                # 非系統等級：清理 /Music/{base_folder}/Playlist/
                 playlist_dir = os.path.join("/Music", base_folder, "Playlist")
-                playlist_dirs.add(playlist_dir)
+            else:
+                continue
+            playlist_dirs.add(playlist_dir)
 
         # 第二步：清理這些目錄中的所有舊 M3U 檔案
         cleaned_files_count = 0
@@ -961,6 +982,7 @@ def _perform_batch_m3u_generation():
                 playlist_id = playlist.get('id')
                 playlist_name = playlist.get('name', f'playlist_{playlist_id}')
                 base_folder = playlist.get('base_folder', '')
+                is_system_level = playlist.get('is_system_level', False)
 
                 _batch_task_status["progress"] = idx
                 _batch_task_status["message"] = f"正在生成播放清單 {idx + 1}/{len(playlists_data)}: {playlist_name}"
@@ -969,8 +991,13 @@ def _perform_batch_m3u_generation():
                 # 生成 M3U 內容（使用相對路徑）
                 m3u_content = generate_m3u_content(playlist, playlist_name, use_relative_paths=True)
 
-                # 建立輸出目錄路徑：/Music/{BaseFolder}/Playlist/
-                playlist_dir = os.path.join("/Music", base_folder, "Playlist")
+                # 根據 is_system_level 決定輸出目錄路徑
+                if is_system_level:
+                    # 系統等級：保存在 /Music/Playlist/
+                    playlist_dir = os.path.join("/Music", "Playlist")
+                else:
+                    # 非系統等級：保存在 /Music/{BaseFolder}/Playlist/
+                    playlist_dir = os.path.join("/Music", base_folder, "Playlist")
 
                 # 確保目錄存在
                 os.makedirs(playlist_dir, exist_ok=True)

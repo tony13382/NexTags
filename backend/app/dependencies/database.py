@@ -43,9 +43,23 @@ class Database:
                         filter_tags TEXT[],
                         exclude_tags TEXT[],
                         sort_by VARCHAR(50) DEFAULT 'file_creation_time',
+                        is_system_level BOOLEAN DEFAULT FALSE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
+                """)
+
+                # 為現有表添加 is_system_level 欄位（如果不存在）
+                cur.execute("""
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_name='smartplaylists' AND column_name='is_system_level'
+                        ) THEN
+                            ALTER TABLE SmartPlaylists ADD COLUMN is_system_level BOOLEAN DEFAULT FALSE;
+                        END IF;
+                    END $$;
                 """)
 
                 # 建立索引

@@ -1,0 +1,15 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# 複製 package 文件
+COPY package*.json ./
+
+# 安裝依賴
+RUN npm ci
+
+# 暴露 Vite 開發伺服器端口
+EXPOSE 5173
+
+# 啟動開發伺服器前確保依賴已安裝
+CMD ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0"]

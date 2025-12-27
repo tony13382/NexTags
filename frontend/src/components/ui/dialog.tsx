@@ -32,7 +32,7 @@ export function DialogContent({ className, children, ...props }: DialogContentPr
     return (
         <div
             className={cn(
-                "bg-white rounded-lg shadow-lg p-6 max-h-[90vh] overflow-y-auto",
+                "bg-white rounded-lg shadow-lg p-4 max-h-[90vh] overflow-y-auto",
                 className
             )}
             {...props}
@@ -101,7 +101,7 @@ type DialogFooterProps = React.ComponentProps<"div">
 export function DialogFooter({ className, children, ...props }: DialogFooterProps) {
     return (
         <div
-            className={cn("flex justify-end space-x-2 mt-6", className)}
+            className={cn("flex justify-end space-x-2 pt-4", className)}
             {...props}
         >
             {children}

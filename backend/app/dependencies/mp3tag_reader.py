@@ -34,9 +34,9 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
         'discnumber': ['discnumber', 'TPOS', 'disk', 'DISCNUMBER', 'DISC'],
         'disctotal': ['disctotal', 'DISCTOTAL'],
         'genre': ['genre', 'TCON', '\xa9gen', 'GENRE'],
-        'language': ['language', 'TLAN', 'LANGUAGE'],
-        'favorite': ['favorite', 'FAVORITE', 'Favorite', 'TXXX:FAVORITE', 'TXXX:Favorite'],
-        # ReplayGain 相關標籤（只保留 Track Gain 和 Track Peak）
+        'language': ['language', 'TLAN', 'LANGUAGE', 'TXXX:LANGUAGE', '----:com.apple.iTunes:LANGUAGE'],
+        'favorite': ['favorite', 'FAVORITE', 'Favorite', 'TXXX:FAVORITE', 'TXXX:Favorite', '----:com.apple.iTunes:FAVORITE'],
+        # ReplayGain 相關標籤
         'replaygain_track_gain': [
             'replaygain_track_gain',  # FLAC/Vorbis (小寫)
             'REPLAYGAIN_TRACK_GAIN',  # FLAC/Vorbis (大寫)
@@ -50,6 +50,20 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
             'TXXX:REPLAYGAIN_TRACK_PEAK',  # MP3 (ID3v2) - 大寫
             'TXXX:replaygain_track_peak',  # MP3 (ID3v2) - 小寫
             '----:com.apple.iTunes:replaygain_track_peak',  # MP4
+        ],
+        'replaygain_album_gain': [
+            'replaygain_album_gain',  # FLAC/Vorbis (小寫)
+            'REPLAYGAIN_ALBUM_GAIN',  # FLAC/Vorbis (大寫)
+            'TXXX:REPLAYGAIN_ALBUM_GAIN',  # MP3 (ID3v2) - 大寫
+            'TXXX:replaygain_album_gain',  # MP3 (ID3v2) - 小寫
+            '----:com.apple.iTunes:replaygain_album_gain',  # MP4
+        ],
+        'replaygain_album_peak': [
+            'replaygain_album_peak',  # FLAC/Vorbis (小寫)
+            'REPLAYGAIN_ALBUM_PEAK',  # FLAC/Vorbis (大寫)
+            'TXXX:REPLAYGAIN_ALBUM_PEAK',  # MP3 (ID3v2) - 大寫
+            'TXXX:replaygain_album_peak',  # MP3 (ID3v2) - 小寫
+            '----:com.apple.iTunes:replaygain_album_peak',  # MP4
         ],
     }
     
@@ -108,6 +122,12 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
                                     normalized['disctotal'] = parts[1].strip()
                             else:
                                 normalized['discnumber'] = disc_str
+                    elif standard_key in ['language', 'favorite', 'replaygain_track_gain', 'replaygain_track_peak', 'replaygain_album_gain', 'replaygain_album_peak']:
+                        # Language、Favorite 和 ReplayGain 標籤為單值欄位
+                        if isinstance(text_value, list):
+                            normalized[standard_key] = str(text_value[0]) if text_value else ''
+                        else:
+                            normalized[standard_key] = str(text_value) if text_value else ''
                     else:
                         # 其他標籤轉換為字符串
                         if isinstance(text_value, list):
@@ -115,16 +135,27 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
                         else:
                             normalized[standard_key] = str(text_value) if text_value else ''
                 elif isinstance(raw_value, list):
+                    # 處理 MP4FreeForm (bytes) - 需要解碼
+                    decoded_value = []
+                    for v in raw_value:
+                        if isinstance(v, bytes):
+                            try:
+                                decoded_value.append(v.decode('utf-8'))
+                            except:
+                                decoded_value.append(str(v))
+                        else:
+                            decoded_value.append(v)
+
                     if standard_key == 'genre':
                         # 流派標籤保持為列表格式
-                        normalized[standard_key] = [str(v) for v in raw_value if v] if raw_value else []
+                        normalized[standard_key] = [str(v) for v in decoded_value if v] if decoded_value else []
                     elif standard_key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
                         # Artist 相關標籤使用分號分隔
-                        normalized[standard_key] = ';'.join(str(v) for v in raw_value) if raw_value else ''
+                        normalized[standard_key] = ';'.join(str(v) for v in decoded_value) if decoded_value else ''
                     elif standard_key == 'discnumber':
                         # Disc 標籤可能是 [(1, 2)] 格式或 ["1/2"] 格式
-                        if len(raw_value) > 0:
-                            disc_value = raw_value[0]
+                        if len(decoded_value) > 0:
+                            disc_value = decoded_value[0]
                             if isinstance(disc_value, tuple) and len(disc_value) >= 1:
                                 normalized['discnumber'] = str(disc_value[0]) if disc_value[0] else ''
                                 if len(disc_value) >= 2 and disc_value[1]:
@@ -138,12 +169,12 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
                                         normalized['disctotal'] = parts[1].strip()
                                 else:
                                     normalized['discnumber'] = disc_str
-                    elif standard_key.startswith('replaygain_'):
-                        # ReplayGain 標籤取第一個值
-                        normalized[standard_key] = str(raw_value[0]) if raw_value else ''
+                    elif standard_key.startswith('replaygain_') or standard_key in ['language', 'favorite']:
+                        # ReplayGain、Language 和 Favorite 標籤取第一個值（單值欄位）
+                        normalized[standard_key] = str(decoded_value[0]) if decoded_value else ''
                     else:
                         # 其他標籤轉換為字符串
-                        normalized[standard_key] = ' '.join(str(v) for v in raw_value) if raw_value else ''
+                        normalized[standard_key] = ' '.join(str(v) for v in decoded_value) if decoded_value else ''
                 else:
                     if standard_key == 'genre':
                         # 流派標籤保持為列表格式

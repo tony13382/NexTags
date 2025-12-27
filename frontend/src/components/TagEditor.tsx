@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { X, ArrowRight, Save, Upload, Image as ImageIcon } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { X, ArrowRight, Save, Upload, Image as ImageIcon, Sparkles, AudioLines } from 'lucide-react';
 
 interface Song {
   Title: string;
@@ -580,29 +582,33 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
             </div>
             <div>
               <label className="text-gray-500 block mb-1">Language</label>
-              <select
+              <Select
                 value={editedSong.Language}
-                onChange={(e) => handleInputChange('Language', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onValueChange={(value) => handleInputChange('Language', value)}
               >
-                <option value="">請選擇語言</option>
-                {Object.entries(languages).map(([code, name]) => (
-                  <option key={code} value={code}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="請選擇語言" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(languages).map(([code, name]) => (
+                    <SelectItem key={code} value={code}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
-              <label className="text-gray-500 block mb-1">Favorite</label>
-              <select
-                value={editedSong.Favorite}
-                onChange={(e) => handleInputChange('Favorite', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="False">否</option>
-                <option value="True">是</option>
-              </select>
+              <label className="text-gray-500 block mb-3">Favorite</label>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={editedSong.Favorite === 'True'}
+                  onCheckedChange={(checked) => handleInputChange('Favorite', checked ? 'True' : 'False')}
+                />
+                <span className="text-sm text-gray-600">
+                  {editedSong.Favorite === 'True' ? '是' : '否'}
+                </span>
+              </div>
             </div>
             <div>
               <label className="text-gray-500 block mb-1">備註 (Comment)</label>
@@ -620,12 +626,13 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
             <div className="flex items-center justify-between mb-3">
               <label className="text-gray-700 font-medium">ReplayGain</label>
               <Button
-                variant="outline"
+                variant="clear"
                 size="sm"
                 onClick={generateReplayGain}
                 disabled={generatingReplayGain}
-                className="text-xs"
+                className="text-xs rounded-full"
               >
+                <AudioLines className="h-4 w-4" />
                 {generatingReplayGain ? '生成中...' : '計算 ReplayGain'}
               </Button>
             </div>
@@ -656,13 +663,14 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
               <div className="flex items-center justify-between mb-1">
                 <label className="text-gray-500">歌詞 (Lyrics)</label>
                 <Button
-                  variant="outline"
+                  variant="clear"
                   size="sm"
                   onClick={processLyrics}
                   disabled={loading || !editedSong.Lyrics}
-                  className="text-xs"
+                  className="text-xs rounded-full"
                 >
-                  處理歌詞
+                  <Sparkles className='size-4' />
+                  {loading ? '處理中...' : ''}
                 </Button>
               </div>
               <textarea
@@ -670,7 +678,7 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
                 onChange={(e) => handleInputChange('Lyrics', e.target.value)}
                 placeholder="輸入歌詞..."
                 rows={12}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
+                className="w-full px-3 py-2 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical"
               />
             </div>
           </div>

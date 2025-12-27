@@ -4,7 +4,10 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter } from '@/components/ui/dialog';
-import { Save } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Info, Save } from 'lucide-react';
 
 interface SmartPlaylist {
     name: string;
@@ -14,6 +17,7 @@ interface SmartPlaylist {
     filter_language: string | null;
     filter_favorites: boolean | null;
     sort_method: string;
+    is_system_level: boolean;
     filter_tags_display: string[];
     exclude_tags_display: string[];
     filter_language_display: string;
@@ -55,7 +59,8 @@ export default function PlaylistEditDialog({
                     exclude_tags: [...(playlist.exclude_tags || [])],
                     filter_language: playlist.filter_language,
                     filter_favorites: playlist.filter_favorites,
-                    sort_method: playlist.sort_method || 'creation_time'
+                    sort_method: playlist.sort_method || 'creation_time',
+                    is_system_level: playlist.is_system_level ?? false
                 });
             } else {
                 // 新增模式
@@ -66,7 +71,8 @@ export default function PlaylistEditDialog({
                     exclude_tags: [],
                     filter_language: null,
                     filter_favorites: null,
-                    sort_method: 'creation_time'
+                    sort_method: 'creation_time',
+                    is_system_level: false
                 });
             }
         }
@@ -166,12 +172,12 @@ export default function PlaylistEditDialog({
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">
-                <DialogHeader>
+                <DialogHeader className='p-2 pb-0'>
                     <DialogTitle>{isCreate ? '新增播放清單' : '播放清單編輯'}</DialogTitle>
                     <DialogClose onClose={handleClose} />
                 </DialogHeader>
 
-                <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto px-2">
                     {/* 播放清單名稱 */}
                     <div>
                         <label className="text-sm font-medium text-gray-700 block mb-2">Title</label>
@@ -186,18 +192,21 @@ export default function PlaylistEditDialog({
                     {/* BaseFolder */}
                     <div>
                         <label className="text-sm font-medium text-gray-700 block mb-2">BaseFolder</label>
-                        <select
+                        <Select
                             value={editedPlaylist.base_folder || ''}
-                            onChange={(e) => handleInputChange('base_folder', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            onValueChange={(value) => handleInputChange('base_folder', value)}
                         >
-                            <option value="">選擇基礎資料夾</option>
-                            {baseFolders.map((folder) => (
-                                <option key={folder} value={folder}>
-                                    {folder}
-                                </option>
-                            ))}
-                        </select>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="選擇基礎資料夾" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {baseFolders.map((folder) => (
+                                    <SelectItem key={folder} value={folder}>
+                                        {folder}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     {/* Tags / Genre (標籤) */}
@@ -249,60 +258,95 @@ export default function PlaylistEditDialog({
                     {/* Language */}
                     <div>
                         <label className="text-sm font-medium text-gray-700 block mb-2">Language</label>
-                        <select
-                            value={editedPlaylist.filter_language || ''}
-                            onChange={(e) => handleInputChange('filter_language', e.target.value || null)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        <Select
+                            value={editedPlaylist.filter_language || 'NONE'}
+                            onValueChange={(value) => handleInputChange('filter_language', value === 'NONE' ? null : value)}
                         >
-                            <option value="">不設定</option>
-                            {Object.entries(languages).map(([code, name]) => (
-                                <option key={code} value={code}>
-                                    {name}
-                                </option>
-                            ))}
-                        </select>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="不設定" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="NONE">不設定</SelectItem>
+                                {Object.entries(languages).map(([code, name]) => (
+                                    <SelectItem key={code} value={code}>
+                                        {name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     {/* Favorites */}
                     <div>
                         <label className="text-sm font-medium text-gray-700 block mb-2">Favorites</label>
-                        <select
-                            value={editedPlaylist.filter_favorites === null || editedPlaylist.filter_favorites === undefined ? '' : editedPlaylist.filter_favorites.toString()}
-                            onChange={(e) => {
-                                const value = e.target.value;
-                                if (value === '') {
+                        <Select
+                            value={editedPlaylist.filter_favorites === null || editedPlaylist.filter_favorites === undefined ? 'NONE' : editedPlaylist.filter_favorites.toString()}
+                            onValueChange={(value) => {
+                                if (value === 'NONE') {
                                     handleInputChange('filter_favorites', null);
                                 } else {
                                     handleInputChange('filter_favorites', value === 'true');
                                 }
                             }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                            <option value="">不設定</option>
-                            <option value="true">是</option>
-                            <option value="false">否</option>
-                        </select>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="不設定" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="NONE">不設定</SelectItem>
+                                <SelectItem value="true">是</SelectItem>
+                                <SelectItem value="false">否</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     {/* Sort Method */}
                     <div>
                         <label className="text-sm font-medium text-gray-700 block mb-2">Sort Method (排序方式)</label>
-                        <select
+                        <Select
                             value={editedPlaylist.sort_method || 'creation_time'}
-                            onChange={(e) => handleInputChange('sort_method', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            onValueChange={(value) => handleInputChange('sort_method', value)}
                         >
-                            <option value="creation_time">檔案建立時間 (File Creation Time)</option>
-                            <option value="title">標題 (TitleSort)</option>
-                        </select>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="選擇排序方式" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="creation_time">檔案建立時間 (File Creation Time)</SelectItem>
+                                <SelectItem value="title">標題 (TitleSort)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* System Level Playlist */}
+                    <div className="flex flex-col gap-2 pb-4">
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm font-medium text-gray-700">系統等級播放清單</label>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <div className="text-sm">
+                                            <p><strong>開啟：</strong>存入 /Music/Playlist</p>
+                                            <p><strong>關閉：</strong>存入 /Music/{editedPlaylist.base_folder || '音樂資料夾'}/Playlist</p>
+                                        </div>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </div>
+                        <Switch
+                            checked={editedPlaylist.is_system_level ?? false}
+                            onCheckedChange={(checked) => handleInputChange('is_system_level', checked)}
+                        />
                     </div>
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" onClick={handleClose} disabled={loading}>
+                    <Button variant="outline" onClick={handleClose} disabled={loading} className='flex-1'>
                         取消
                     </Button>
-                    <Button onClick={handleSave} disabled={loading} className="flex items-center gap-2">
+                    <Button onClick={handleSave} disabled={loading} className="flex-1 flex items-center gap-2">
                         <Save className="w-4 h-4" />
                         {loading ? '儲存中...' : 'Save'}
                     </Button>

@@ -16,7 +16,8 @@ export default defineConfig({
     proxy: {
       // 開發環境下代理 API 請求到後端
       '/api': {
-        target: process.env.VITE_API_URL || 'http://localhost:6000',
+        // 在 Docker 環境中使用 backend:8000，本地開發使用 localhost:6000
+        target: process.env.DOCKER_ENV ? 'http://backend:8000' : 'http://localhost:6000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },

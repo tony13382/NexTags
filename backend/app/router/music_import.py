@@ -364,31 +364,73 @@ async def get_import_status(file_id: str):
 
 @router.get("/pending", response_model=ListPendingImportsResponse)
 async def list_pending_imports():
-    """列出待處理的匯入檔案"""
+    """列出 WaitImport 資料夾中的實際檔案"""
     try:
         pending_imports = []
-        
-        for file_id, session in import_sessions.items():
-            if session.get('status') != ImportStatus.COMPLETED:
+        wait_import_path = get_wait_import_path()
+
+        # 列出 WaitImport 資料夾中的所有檔案
+        if os.path.exists(wait_import_path):
+            for filename in os.listdir(wait_import_path):
+                file_path = os.path.join(wait_import_path, filename)
+
+                # 跳過目錄
+                if os.path.isdir(file_path):
+                    continue
+
+                # 獲取檔案資訊
+                file_stat = os.stat(file_path)
+                created_at = datetime.fromtimestamp(file_stat.st_ctime)
+                modified_at = datetime.fromtimestamp(file_stat.st_mtime)
+
+                # 嘗試從檔案名稱提取 file_id 和 original_filename
+                # 格式: {file_id}_{original_filename}
+                file_id = None
+                original_filename = filename
+                status = 'unknown'
+                base_folder = ''
+                errors = []
+
+                if '_' in filename:
+                    parts = filename.split('_', 1)
+                    potential_id = parts[0]
+                    # 檢查是否為 UUID 格式
+                    if len(potential_id) == 36 and potential_id.count('-') == 4:
+                        file_id = potential_id
+                        original_filename = parts[1]
+
+                        # 嘗試從 import_sessions 獲取額外資訊
+                        if file_id in import_sessions:
+                            session = import_sessions[file_id]
+                            status = session.get('status', 'unknown')
+                            base_folder = session.get('base_folder', '')
+                            errors = session.get('errors', [])
+                        else:
+                            status = 'orphaned'  # 檔案存在但沒有對應的會話
+                else:
+                    # 沒有 file_id 的檔案
+                    file_id = filename  # 使用檔案名作為 ID
+                    status = 'unknown'
+
                 pending_imports.append({
-                    'file_id': file_id,
-                    'original_filename': session.get('original_filename'),
-                    'status': session.get('status'),
-                    'created_at': session.get('created_at'),
-                    'updated_at': session.get('updated_at'),
-                    'base_folder': session.get('base_folder'),
-                    'errors': session.get('errors', [])
+                    'file_id': file_id or filename,
+                    'original_filename': original_filename,
+                    'status': status,
+                    'created_at': created_at,
+                    'updated_at': modified_at,
+                    'base_folder': base_folder,
+                    'errors': errors
                 })
-        
-        # 按建立時間排序
+
+        # 按建立時間排序（最新的在前）
         pending_imports.sort(key=lambda x: x['created_at'], reverse=True)
-        
+
         return ListPendingImportsResponse(
             success=True,
             pending_imports=pending_imports,
             count=len(pending_imports)
         )
-        
+
     except Exception as e:
         logger.error(f"列出待處理匯入失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=f"列出待處理匯入失敗: {str(e)}")
@@ -397,26 +439,49 @@ async def list_pending_imports():
 async def delete_import(request: DeleteImportRequest):
     """刪除匯入任務和暫存檔案"""
     try:
-        if request.file_id not in import_sessions:
-            raise HTTPException(status_code=404, detail="找不到檔案ID")
-        
-        session = import_sessions[request.file_id]
-        temp_path = session.get('temp_path')
-        
-        # 刪除暫存檔案
-        if temp_path and os.path.exists(temp_path):
-            os.remove(temp_path)
-        
-        # 刪除匯入會話
-        del import_sessions[request.file_id]
-        
-        logger.info(f"匯入任務刪除成功: {request.file_id}")
-        
+        wait_import_path = get_wait_import_path()
+        file_deleted = False
+
+        # 方法1: 嘗試從 import_sessions 中查找
+        if request.file_id in import_sessions:
+            session = import_sessions[request.file_id]
+            temp_path = session.get('temp_path')
+
+            # 刪除暫存檔案
+            if temp_path and os.path.exists(temp_path):
+                os.remove(temp_path)
+                file_deleted = True
+
+            # 刪除匯入會話
+            del import_sessions[request.file_id]
+            logger.info(f"匯入任務刪除成功: {request.file_id}")
+        else:
+            # 方法2: 直接在 WaitImport 資料夾中搜尋檔案
+            # 嘗試兩種模式: {file_id}_{filename} 或直接 {file_id}
+            for filename in os.listdir(wait_import_path):
+                file_path = os.path.join(wait_import_path, filename)
+
+                # 跳過目錄
+                if os.path.isdir(file_path):
+                    continue
+
+                # 檢查檔案名稱是否匹配
+                if filename.startswith(request.file_id + '_') or filename == request.file_id:
+                    os.remove(file_path)
+                    file_deleted = True
+                    logger.info(f"刪除 WaitImport 檔案: {filename}")
+                    break
+
+        if not file_deleted:
+            raise HTTPException(status_code=404, detail="找不到要刪除的檔案")
+
         return DeleteImportResponse(
             success=True,
-            message="匯入任務已刪除"
+            message="檔案已刪除"
         )
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"刪除匯入任務失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=f"刪除匯入任務失敗: {str(e)}")

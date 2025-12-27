@@ -11,6 +11,7 @@ class SmartPlaylist(BaseModel):
     filter_language: Optional[str] = Field(None, description="語言過濾條件")
     filter_favorites: Optional[bool] = Field(None, description="我的最愛過濾條件")
     sort_method: str = Field("creation_time", description="排序方式: creation_time 或 title (titlesort)")
+    is_system_level: bool = Field(False, description="系統等級播放清單：True = 存入 /Music/Playlist，False = 存入 /Music/{base_folder}/Playlist")
 
     # 新增完整顯示資訊
     filter_tags_display: List[str] = Field(default_factory=list, description="標籤顯示名稱")
@@ -28,6 +29,7 @@ class SmartPlaylistCreate(BaseModel):
     filter_language: Optional[str] = Field(None, description="語言過濾條件 (例如: chi, eng, kor)")
     filter_favorites: Optional[bool] = Field(None, description="我的最愛過濾條件")
     sort_method: str = Field("creation_time", description="排序方式: creation_time 或 title (titlesort)")
+    is_system_level: bool = Field(False, description="系統等級播放清單：True = 存入 /Music/Playlist，False = 存入 /Music/{base_folder}/Playlist")
 
 class SmartPlaylistUpdate(BaseModel):
     """更新智慧播放清單請求模型"""
@@ -38,6 +40,7 @@ class SmartPlaylistUpdate(BaseModel):
     filter_language: Optional[str] = Field(None, description="語言過濾條件 (例如: chi, eng, kor)")
     filter_favorites: Optional[bool] = Field(None, description="我的最愛過濾條件")
     sort_method: Optional[str] = Field(None, description="排序方式: creation_time 或 title (titlesort)")
+    is_system_level: Optional[bool] = Field(None, description="系統等級播放清單：True = 存入 /Music/Playlist，False = 存入 /Music/{base_folder}/Playlist")
 
 class SmartPlaylistResponse(BaseModel):
     """智慧播放清單響應模型"""

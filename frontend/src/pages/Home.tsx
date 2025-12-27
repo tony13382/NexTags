@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Heart, Edit, Plus } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Search, Heart, Edit, Plus, FolderPlus, RefreshCcw, Edit3 } from 'lucide-react';
 import TagEditor from '@/components/TagEditor';
 import { api } from '@/lib/api';
+import { useGenerateAllM3U } from '@/hooks/useGenerateAllM3U';
 
 interface Song {
   Title: string;
@@ -69,21 +71,23 @@ export default function Home() {
   });
   const [editingSong, setEditingSong] = useState<Song | null>(null);
 
+  // 使用批量生成 M3U 的 hook
+  const { generatingAll, successMessage, error, handleGenerateAllM3U, setError } = useGenerateAllM3U();
+
   const fetchSongs = async (page = 1) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
+      const params: Record<string, string> = {
         p: page.toString(),
         details: 'true'
-      });
+      };
 
-      if (searchTitle) params.append('filterTitle', searchTitle);
-      if (selectedFolder) params.append('filterFolder', selectedFolder);
-      if (selectedLanguage) params.append('filterLanguage', selectedLanguage);
-      if (showFavorites) params.append('filterFavorite', 'true');
+      if (searchTitle) params.filterTitle = searchTitle;
+      if (selectedFolder) params.filterFolder = selectedFolder;
+      if (selectedLanguage) params.filterLanguage = selectedLanguage;
+      if (showFavorites) params.filterFavorite = 'true';
 
-      const response = await fetch(`${api.url('audios/')}?${params}`);
-      const data: ApiResponse = await response.json();
+      const data: ApiResponse = await api.get('audios/', params);
 
       setSongs(data.audio_files);
       setAllowFolders(data.allow_folders);
@@ -105,6 +109,10 @@ export default function Home() {
     fetchSongs();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    fetchSongs(1);
+  }, [showFavorites]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSearch = () => {
     fetchSongs(1);
   };
@@ -115,7 +123,7 @@ export default function Home() {
 
   const handleSaveTags = async (song: Song) => {
     try {
-      const response = await api.put('audios/update', {
+      await api.put('audios/update', {
         path: song.FilePath,
         tags: [{
           title: song.Title,
@@ -146,12 +154,8 @@ export default function Home() {
         }]
       });
 
-      if (response.ok) {
-        fetchSongs(pagination.current_page);
-        setEditingSong(null);
-      } else {
-        console.error('Failed to save tags');
-      }
+      fetchSongs(pagination.current_page);
+      setEditingSong(null);
     } catch (error) {
       console.error('Error saving tags:', error);
     }
@@ -161,10 +165,23 @@ export default function Home() {
     <div className="mx-auto px-8 py-4">
       <div className="mb-8">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900 mt-4 mb-6 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-foreground mt-4 mb-6 flex items-center gap-2">
             歌曲管理
           </h1>
           <div className="flex gap-2 mt-4 mb-6">
+            <Button
+              variant='outline'
+              onClick={handleGenerateAllM3U}
+              disabled={generatingAll}
+              className="flex items-center gap-2"
+            >
+              {generatingAll ? (
+                <RefreshCcw className="w-4 h-4 animate-spin" />
+              ) : (
+                <FolderPlus className="w-4 h-4" />
+              )}
+              {generatingAll ? '生成中...' : '批量生成 M3U'}
+            </Button>
             <Button
               className="flex items-center gap-2"
               onClick={() => navigate('/new')}
@@ -174,6 +191,26 @@ export default function Home() {
             </Button>
           </div>
         </div>
+
+        {/* 成功訊息 */}
+        {successMessage && (
+          <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
+            {successMessage}
+          </div>
+        )}
+
+        {/* 錯誤訊息 */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
+            <button
+              onClick={() => setError(null)}
+              className="ml-2 text-red-900 hover:text-red-700"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* 搜尋和篩選區域 */}
         <Card className="mb-6">
@@ -193,31 +230,39 @@ export default function Home() {
                   onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 />
               </div>
-              <select
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={selectedFolder}
-                onChange={(e) => setSelectedFolder(e.target.value)}
+              <Select
+                value={selectedFolder || 'ALL'}
+                onValueChange={(value) => setSelectedFolder(value === 'ALL' ? '' : value)}
               >
-                <option value="">所有資料夾</option>
-                {allowFolders.map(folder => (
-                  <option key={folder} value={folder}>{folder}</option>
-                ))}
-              </select>
-              <select
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={selectedLanguage}
-                onChange={(e) => setSelectedLanguage(e.target.value)}
+                <SelectTrigger>
+                  <SelectValue placeholder="所有資料夾" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">所有資料夾</SelectItem>
+                  {allowFolders.map(folder => (
+                    <SelectItem key={folder} value={folder}>{folder}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={selectedLanguage || 'ALL'}
+                onValueChange={(value) => setSelectedLanguage(value === 'ALL' ? '' : value)}
               >
-                <option value="">所有語言</option>
-                {Object.entries(supportedLanguages).map(([code, name]) => (
-                  <option key={code} value={code}>{name}</option>
-                ))}
-              </select>
+                <SelectTrigger>
+                  <SelectValue placeholder="所有語言" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">所有語言</SelectItem>
+                  {Object.entries(supportedLanguages).map(([code, name]) => (
+                    <SelectItem key={code} value={code}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button
                 variant={showFavorites ? 'default' : 'outline'}
                 onClick={() => {
-                  setShowFavorites(!showFavorites);
-                  setTimeout(() => fetchSongs(1), 100);
+                  const newShowFavorites = !showFavorites;
+                  setShowFavorites(newShowFavorites);
                 }}
                 className="flex items-center gap-2"
               >
@@ -231,7 +276,7 @@ export default function Home() {
             </div>
             <div className="mt-4 flex items-center gap-4">
               {/* 統計資訊 */}
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-muted-foreground">
                 共找到 {pagination.total_count} 首歌曲，第 {pagination.current_page} 頁 / 共 {pagination.total_pages} 頁
               </div>
             </div>
@@ -281,36 +326,36 @@ export default function Home() {
                   {songs.map((song, index) => (
                     <tr key={index} className="hover:bg-gray-50">
                       <td className="px-4 py-3 max-w-[200px] min-w-[100px]">
-                        <div className="font-medium text-gray-900 truncate">
+                        <div className="font-medium text-foreground truncate">
                           {song.Title || '未知標題'}
                         </div>
-                        <div className="text-sm text-gray-600 truncate">
+                        <div className="text-sm text-muted-foreground truncate">
                           {song.SortTitle || '未知標題'}
                         </div>
                       </td>
                       <td className="px-4 py-3 max-w-[200px] min-w-[100px]">
-                        <div className="font-medium text-gray-900 truncate">
+                        <div className="font-medium text-foreground truncate">
                           {song.Artist || '未知藝術家'}
                         </div>
-                        <div className="text-sm text-gray-600 truncate">
+                        <div className="text-sm text-muted-foreground truncate">
                           {song.SortArtist || '未知藝術家'}
                         </div>
                       </td>
                       <td className="px-4 py-3 max-w-[200px] min-w-[100px]">
-                        <div className="font-medium text-gray-900 truncate">
+                        <div className="font-medium text-foreground truncate">
                           {song.Album || '未知專輯'}
                         </div>
-                        <div className="text-sm text-gray-600 truncate">
+                        <div className="text-sm text-muted-foreground truncate">
                           {song.SortAlbum || '未知專輯'}
                         </div>
                       </td>
                       <td className="px-4 py-3 max-w-[200px] min-w-[100px]">
-                        <div className="font-medium text-gray-900 truncate">
-                          <span className="inline-block px-2 py-1 mb-2 text-sm bg-gray-500 text-white rounded">
+                        <div className="font-medium text-foreground truncate">
+                          <span className="inline-block px-2 py-0.5 mb-2 text-sm bg-muted-foreground text-white rounded-full">
                             {song.MainFolder}
                           </span>
                         </div>
-                        <div className="text-sm text-gray-600 truncate">
+                        <div className="text-sm text-muted-foreground truncate">
                           {song.FilePath || '未知路徑'}
                         </div>
                       </td>
@@ -318,17 +363,17 @@ export default function Home() {
                         <div className="text-sm flex flex-wrap gap-2 w-full">
                           {song.Genre.length > 0 ? (
                             song.Genre.map((genre, index) => (
-                              <span key={index} className="inline-block px-2 py-1 text-sm bg-gray-100 text-gray-900 rounded">
+                              <span key={index} className="inline-block px-2 py-1 text-sm bg-gray-100 text-foreground rounded-full">
                                 {genre}
                               </span>
                             ))
                           ) : (
-                            <span className="text-gray-600">-</span>
+                            <span className="text-muted-foreground">-</span>
                           )}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-center max-w-[80px] min-w-[40px]">
-                        <div className="text-sm text-gray-900 max-w-[100px] min-w-[40px]">
+                        <div className="text-sm text-foreground max-w-[100px] min-w-[40px]">
                           {song.Language || '-'}
                         </div>
                       </td>
@@ -341,13 +386,12 @@ export default function Home() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <Button
-                          variant="outline"
+                          variant="clear"
                           size="sm"
                           className="flex items-center gap-1 mx-auto"
                           onClick={() => setEditingSong(song)}
                         >
-                          <Edit className="h-3 w-3" />
-                          編輯
+                          <Edit3 className="size-5" />
                         </Button>
                       </td>
                     </tr>
@@ -367,7 +411,7 @@ export default function Home() {
               >
                 上一頁
               </Button>
-              <span className="px-4 py-2 text-sm text-gray-600">
+              <span className="px-4 py-2 text-sm text-muted-foreground">
                 {pagination.current_page} / {pagination.total_pages}
               </span>
               <Button

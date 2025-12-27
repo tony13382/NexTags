@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ArrowRight, Save, X } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ArrowRight, Save, Sparkles, X } from 'lucide-react'
 
 interface TagEditorProps {
     filePath: string
@@ -386,18 +387,21 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
             {/* 語言 */}
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">語言</label>
-                <select
+                <Select
                     value={String(tags.language || '')}
-                    onChange={(e) => handleInputChange('language', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onValueChange={(value) => handleInputChange('language', value)}
                 >
-                    <option value="">請選擇語言</option>
-                    {Object.entries(languages).map(([code, name]) => (
-                        <option key={code} value={code}>
-                            {name}
-                        </option>
-                    ))}
-                </select>
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="請選擇語言" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {Object.entries(languages).map(([code, name]) => (
+                            <SelectItem key={code} value={code}>
+                                {name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
 
             {/* 備註 */}
@@ -450,7 +454,8 @@ export default function MusicImportTagEditor({ filePath, initialTags, onSave, on
                         disabled={loading || !tags.lyrics}
                         className="text-xs"
                     >
-                        處理歌詞
+                        <Sparkles className='size-4' />
+                        {loading ? '處理中...' : ''}
                     </Button>
                 </div>
                 <textarea

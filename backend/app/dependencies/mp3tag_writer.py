@@ -35,6 +35,8 @@ def validate_genres(genres):
 
 def write_mp4_tags(audio, tags_dict):
     """寫入 MP4 格式的標籤"""
+    from mutagen.mp4 import MP4FreeForm
+
     tag_mapping = {
         'title': '\xa9nam',
         'artist': '\xa9ART',
@@ -56,7 +58,7 @@ def write_mp4_tags(audio, tags_dict):
         'composersort': 'soco',
         'performersort': 'sope',
     }
-    
+
     # 處理 discnumber 和 disctotal
     discnumber = tags_dict.get('discnumber', '')
     disctotal = tags_dict.get('disctotal', '')
@@ -69,9 +71,24 @@ def write_mp4_tags(audio, tags_dict):
         except (ValueError, TypeError):
             pass
 
+    # 處理自定義欄位 (使用 FreeForm)
+    custom_fields = {
+        'language': '----:com.apple.iTunes:LANGUAGE',
+        'favorite': '----:com.apple.iTunes:FAVORITE',
+        'replaygain_track_gain': '----:com.apple.iTunes:replaygain_track_gain',
+        'replaygain_track_peak': '----:com.apple.iTunes:replaygain_track_peak',
+        'replaygain_album_gain': '----:com.apple.iTunes:replaygain_album_gain',
+        'replaygain_album_peak': '----:com.apple.iTunes:replaygain_album_peak',
+    }
+
+    for key, mp4_key in custom_fields.items():
+        if key in tags_dict and tags_dict[key]:
+            value = str(tags_dict[key])
+            audio[mp4_key] = [MP4FreeForm(value.encode('utf-8'))]
+
     for key, value in tags_dict.items():
-        # 跳過 discnumber 和 disctotal，因為已經在上面處理了
-        if key in ['discnumber', 'disctotal']:
+        # 跳過已處理的欄位
+        if key in ['discnumber', 'disctotal'] or key in custom_fields or key in ['jfid', 'jellyfin_add_time']:
             continue
 
         if key in tag_mapping:
@@ -116,9 +133,16 @@ def write_flac_tags(audio, tags_dict):
     if disctotal:
         audio['DISCTOTAL'] = [str(disctotal)]
 
+    # 處理自定義欄位
+    custom_fields = ['language', 'favorite', 'replaygain_track_gain', 'replaygain_track_peak',
+                     'replaygain_album_gain', 'replaygain_album_peak']
+    for field in custom_fields:
+        if field in tags_dict and tags_dict[field]:
+            audio[field.upper()] = [str(tags_dict[field])]
+
     for key, value in tags_dict.items():
-        # 跳過 discnumber 和 disctotal，因為已經在上面處理了
-        if key in ['discnumber', 'disctotal']:
+        # 跳過已處理的欄位
+        if key in ['discnumber', 'disctotal'] or key in custom_fields or key in ['jfid', 'jellyfin_add_time']:
             continue
         if key == 'genre':
             # 處理流派列表格式並驗證
@@ -154,9 +178,16 @@ def write_ogg_tags(audio, tags_dict):
     if disctotal:
         audio['DISCTOTAL'] = [str(disctotal)]
 
+    # 處理自定義欄位
+    custom_fields = ['language', 'favorite', 'replaygain_track_gain', 'replaygain_track_peak',
+                     'replaygain_album_gain', 'replaygain_album_peak']
+    for field in custom_fields:
+        if field in tags_dict and tags_dict[field]:
+            audio[field.upper()] = [str(tags_dict[field])]
+
     for key, value in tags_dict.items():
-        # 跳過 discnumber 和 disctotal，因為已經在上面處理了
-        if key in ['discnumber', 'disctotal']:
+        # 跳過已處理的欄位
+        if key in ['discnumber', 'disctotal'] or key in custom_fields or key in ['jfid', 'jellyfin_add_time']:
             continue
         if key == 'genre':
             # 處理流派列表格式並驗證
@@ -217,9 +248,23 @@ def write_mp3_tags(audio, tags_dict):
         except (ValueError, TypeError):
             pass
 
+    # 處理自定義欄位 (使用 TXXX)
+    custom_fields = {
+        'language': 'LANGUAGE',
+        'favorite': 'FAVORITE',
+        'replaygain_track_gain': 'REPLAYGAIN_TRACK_GAIN',
+        'replaygain_track_peak': 'REPLAYGAIN_TRACK_PEAK',
+        'replaygain_album_gain': 'REPLAYGAIN_ALBUM_GAIN',
+        'replaygain_album_peak': 'REPLAYGAIN_ALBUM_PEAK',
+    }
+
+    for key, desc in custom_fields.items():
+        if key in tags_dict and tags_dict[key]:
+            audio.tags[f'TXXX:{desc}'] = TXXX(encoding=3, desc=desc, text=[str(tags_dict[key])])
+
     for key, value in tags_dict.items():
-        # 跳過 discnumber 和 disctotal，因為已經在上面處理了
-        if key in ['discnumber', 'disctotal']:
+        # 跳過已處理的欄位
+        if key in ['discnumber', 'disctotal'] or key in custom_fields or key in ['jfid', 'jellyfin_add_time']:
             continue
         if key == 'comment':
             # 對於評論，使用 COMM 框架
