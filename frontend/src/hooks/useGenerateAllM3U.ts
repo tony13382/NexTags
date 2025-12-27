@@ -1,19 +1,14 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 
 interface GenerateAllM3UResult {
   generatingAll: boolean;
-  successMessage: string | null;
-  error: string | null;
   handleGenerateAllM3U: () => Promise<void>;
-  setSuccessMessage: (message: string | null) => void;
-  setError: (error: string | null) => void;
 }
 
 export function useGenerateAllM3U(): GenerateAllM3UResult {
   const [generatingAll, setGeneratingAll] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   // 輪詢任務狀態
   const pollTaskStatus = async () => {
@@ -25,7 +20,7 @@ export function useGenerateAllM3U(): GenerateAllM3UResult {
         const progressText = statusData.total > 0
           ? `${statusData.message} (${statusData.progress}/${statusData.total})`
           : statusData.message;
-        setSuccessMessage(`${progressText}`);
+        toast.loading(progressText, { id: 'generate-all-m3u' });
 
         // 繼續輪詢
         setTimeout(pollTaskStatus, 1000);
@@ -39,8 +34,7 @@ export function useGenerateAllM3U(): GenerateAllM3UResult {
             message += `，失敗 ${error_count} 個`;
           }
 
-          setSuccessMessage(message);
-          setTimeout(() => setSuccessMessage(null), 8000);
+          toast.success(message, { id: 'generate-all-m3u', duration: 8000 });
 
           // 如果有錯誤，在控制台記錄詳細信息
           if (statusData.result.errors && statusData.result.errors.length > 0) {
@@ -49,7 +43,7 @@ export function useGenerateAllM3U(): GenerateAllM3UResult {
         }
       } else if (statusData.status === 'error') {
         setGeneratingAll(false);
-        setError(statusData.message || '批量生成 M3U 檔案失敗');
+        toast.error(statusData.message || '批量生成 M3U 檔案失敗', { id: 'generate-all-m3u' });
       } else if (statusData.status === 'idle') {
         // 如果狀態是 idle，可能是任務已經完成很久了
         setGeneratingAll(false);
@@ -64,33 +58,27 @@ export function useGenerateAllM3U(): GenerateAllM3UResult {
   // 批量生成 M3U 檔案
   const handleGenerateAllM3U = async () => {
     try {
-      setError(null);
-      setSuccessMessage(null);
       setGeneratingAll(true);
 
       const data = await api.post('playlists/generate-all-m3u');
 
       if (data.success) {
         // 任務已啟動，開始輪詢狀態
-        setSuccessMessage('批量生成任務已啟動...');
+        toast.loading('批量生成任務已啟動...', { id: 'generate-all-m3u' });
         setTimeout(pollTaskStatus, 1000);
       } else {
         setGeneratingAll(false);
-        setError(data.message || '啟動批量生成任務失敗');
+        toast.error(data.message || '啟動批量生成任務失敗');
       }
     } catch (err) {
       setGeneratingAll(false);
-      setError('網路錯誤，請稍後再試');
+      toast.error('網路錯誤，請稍後再試');
       console.error('Error generating all M3U files:', err);
     }
   };
 
   return {
     generatingAll,
-    successMessage,
-    error,
     handleGenerateAllM3U,
-    setSuccessMessage,
-    setError,
   };
 }

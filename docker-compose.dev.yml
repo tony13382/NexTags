@@ -10,6 +10,8 @@ services:
       - ./backend:/app
       - ${MUSIC_ROOT_PATH}:/Music:rw
       - app-data:/app/data
+      # 排除 .venv（使用容器內的）
+      - /app/.venv
     env_file:
       - ./.env
     environment:

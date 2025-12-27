@@ -72,7 +72,7 @@ export default function Home() {
   const [editingSong, setEditingSong] = useState<Song | null>(null);
 
   // 使用批量生成 M3U 的 hook
-  const { generatingAll, successMessage, error, handleGenerateAllM3U, setError } = useGenerateAllM3U();
+  const { generatingAll, handleGenerateAllM3U } = useGenerateAllM3U();
 
   const fetchSongs = async (page = 1) => {
     setLoading(true);
@@ -191,26 +191,6 @@ export default function Home() {
             </Button>
           </div>
         </div>
-
-        {/* 成功訊息 */}
-        {successMessage && (
-          <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
-            {successMessage}
-          </div>
-        )}
-
-        {/* 錯誤訊息 */}
-        {error && (
-          <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-            <button
-              onClick={() => setError(null)}
-              className="ml-2 text-red-900 hover:text-red-700"
-            >
-              ✕
-            </button>
-          </div>
-        )}
 
         {/* 搜尋和篩選區域 */}
         <Card className="mb-6">
