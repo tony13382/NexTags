@@ -14,7 +14,9 @@ from app.dependencies.logger import logger
 app = FastAPI(
     title="Personal Music Manager API",
     description="Backend API for Personal Music Manager",
-    version="0.1.0"
+    version="0.1.0",
+    # 禁用自动重定向尾部斜杠，避免与 nginx 代理冲突
+    redirect_slashes=False
 )
 
 app.add_middleware(
@@ -25,15 +27,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(audios_router)
-app.include_router(tools_router)
-app.include_router(tags_router)
-app.include_router(images_router)
-app.include_router(playlists_router)
-app.include_router(cache_router)
-app.include_router(music_import_router)
-app.include_router(tasks_router)
-app.include_router(config_router)
+# 添加 /api 前缀到所有路由
+app.include_router(audios_router, prefix="/api")
+app.include_router(tools_router, prefix="/api")
+app.include_router(tags_router, prefix="/api")
+app.include_router(images_router, prefix="/api")
+app.include_router(playlists_router, prefix="/api")
+app.include_router(cache_router, prefix="/api")
+app.include_router(music_import_router, prefix="/api")
+app.include_router(tasks_router, prefix="/api")
+app.include_router(config_router, prefix="/api")
 
 @app.on_event("startup")
 async def startup_event():

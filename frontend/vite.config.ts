@@ -14,12 +14,12 @@ export default defineConfig({
     port: 3000,
     host: true,
     proxy: {
-      // 開發環境下代理 API 請求到後端
+      // 開發環境下代理 API 請求到後端（保留 /api 前缀）
       '/api': {
         // 在 Docker 環境中使用 backend:8000，本地開發使用 localhost:6000
         target: process.env.DOCKER_ENV ? 'http://backend:8000' : 'http://localhost:6000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        // 不再 rewrite，后端现在使用 /api 前缀
       },
     },
   },
