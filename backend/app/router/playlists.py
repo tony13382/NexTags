@@ -63,7 +63,7 @@ def load_playlists() -> List[Dict[str, Any]]:
             with db.get_cursor(conn) as cur:
                 cur.execute("""
                     SELECT id, name, base_folder, filter_language, filter_tags, exclude_tags, sort_by,
-                           is_system_level, created_at, updated_at
+                           is_system_level, filter_favorites, created_at, updated_at
                     FROM SmartPlaylists
                     ORDER BY id
                 """)
@@ -108,7 +108,8 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
                     cur.execute("""
                         UPDATE SmartPlaylists
                         SET name = %s, base_folder = %s, filter_language = %s,
-                            filter_tags = %s, exclude_tags = %s, sort_by = %s, is_system_level = %s, updated_at = CURRENT_TIMESTAMP
+                            filter_tags = %s, exclude_tags = %s, sort_by = %s, is_system_level = %s,
+                            filter_favorites = %s, updated_at = CURRENT_TIMESTAMP
                         WHERE id = %s
                         RETURNING id
                     """, (
@@ -119,13 +120,14 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
                         playlist.get('exclude_tags', []),
                         sort_value,
                         playlist.get('is_system_level', False),
+                        playlist.get('filter_favorites'),
                         playlist['id']
                     ))
                 else:
                     # 建立新播放清單
                     cur.execute("""
-                        INSERT INTO SmartPlaylists (name, base_folder, filter_language, filter_tags, exclude_tags, sort_by, is_system_level)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO SmartPlaylists (name, base_folder, filter_language, filter_tags, exclude_tags, sort_by, is_system_level, filter_favorites)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                     """, (
                         playlist['name'],
@@ -134,7 +136,8 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
                         playlist.get('filter_tags', []),
                         playlist.get('exclude_tags', []),
                         sort_value,
-                        playlist.get('is_system_level', False)
+                        playlist.get('is_system_level', False),
+                        playlist.get('filter_favorites')
                     ))
 
                 result = cur.fetchone()
@@ -1150,7 +1153,7 @@ async def export_playlists_config():
             with db.get_cursor(conn) as cur:
                 cur.execute("""
                     SELECT id, name, base_folder, filter_language, filter_tags,
-                           exclude_tags, sort_by, is_system_level, created_at, updated_at
+                           exclude_tags, sort_by, is_system_level, filter_favorites, created_at, updated_at
                     FROM SmartPlaylists
                     ORDER BY id
                 """)
@@ -1171,7 +1174,8 @@ async def export_playlists_config():
                 "filter_tags": playlist["filter_tags"] if playlist["filter_tags"] else [],
                 "exclude_tags": playlist["exclude_tags"] if playlist["exclude_tags"] else [],
                 "sort_by": playlist["sort_by"],
-                "is_system_level": playlist["is_system_level"]
+                "is_system_level": playlist["is_system_level"],
+                "filter_favorites": playlist.get("filter_favorites")
             })
 
         # 同時儲存到伺服器檔案（供匯入使用）
@@ -1317,6 +1321,7 @@ async def import_playlists_config(
                                 exclude_tags = %s,
                                 sort_by = %s,
                                 is_system_level = %s,
+                                filter_favorites = %s,
                                 updated_at = CURRENT_TIMESTAMP
                             WHERE name = %s
                         """, (
@@ -1326,6 +1331,7 @@ async def import_playlists_config(
                             playlist_data.get("exclude_tags", []),
                             playlist_data.get("sort_by", "file_creation_time"),
                             playlist_data.get("is_system_level", False),
+                            playlist_data.get("filter_favorites"),
                             playlist_name
                         ))
                         updated_count += 1
@@ -1334,8 +1340,8 @@ async def import_playlists_config(
                         # 插入新播放清單
                         cur.execute("""
                             INSERT INTO SmartPlaylists
-                            (name, base_folder, filter_language, filter_tags, exclude_tags, sort_by, is_system_level)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            (name, base_folder, filter_language, filter_tags, exclude_tags, sort_by, is_system_level, filter_favorites)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         """, (
                             playlist_name,
                             playlist_data.get("base_folder", ""),
@@ -1343,7 +1349,8 @@ async def import_playlists_config(
                             playlist_data.get("filter_tags", []),
                             playlist_data.get("exclude_tags", []),
                             playlist_data.get("sort_by", "file_creation_time"),
-                            playlist_data.get("is_system_level", False)
+                            playlist_data.get("is_system_level", False),
+                            playlist_data.get("filter_favorites")
                         ))
                         imported_count += 1
                         logger.info(f"新增播放清單: {playlist_name}")

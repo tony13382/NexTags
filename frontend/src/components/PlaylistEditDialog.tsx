@@ -213,46 +213,56 @@ export default function PlaylistEditDialog({
                     <div>
                         <label className="text-sm font-medium text-gray-700 block mb-3">Tags / Genre (標籤)</label>
                         <div className="flex flex-wrap gap-2">
-                            {availableTags.map((tag) => {
-                                const isSelected = editedPlaylist.filter_tags?.includes(tag) || false;
-                                return (
-                                    <button
-                                        key={tag}
-                                        type="button"
-                                        onClick={() => handleTagToggle(tag)}
-                                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${isSelected
-                                            ? 'bg-gray-800 text-white'
-                                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                            }`}
-                                    >
-                                        {tag}
-                                    </button>
-                                );
-                            })}
+                            {availableTags
+                                .filter(tag => !editedPlaylist.exclude_tags?.includes(tag))
+                                .map((tag) => {
+                                    const isSelected = editedPlaylist.filter_tags?.includes(tag) || false;
+                                    return (
+                                        <button
+                                            key={tag}
+                                            type="button"
+                                            onClick={() => handleTagToggle(tag)}
+                                            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${isSelected
+                                                ? 'bg-gray-800 text-white'
+                                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                }`}
+                                        >
+                                            {tag}
+                                        </button>
+                                    );
+                                })}
                         </div>
+                        {availableTags.filter(tag => !editedPlaylist.exclude_tags?.includes(tag)).length === 0 && (
+                            <p className="text-sm text-gray-500 mt-2">所有標籤都已在「Exclude Tags」中被選擇</p>
+                        )}
                     </div>
 
                     {/* Exclude Tags (排除標籤) */}
                     <div>
                         <label className="text-sm font-medium text-gray-700 block mb-3">Exclude Tags (排除標籤)</label>
                         <div className="flex flex-wrap gap-2">
-                            {availableTags.map((tag) => {
-                                const isSelected = editedPlaylist.exclude_tags?.includes(tag) || false;
-                                return (
-                                    <button
-                                        key={tag}
-                                        type="button"
-                                        onClick={() => handleExcludeTagToggle(tag)}
-                                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${isSelected
-                                            ? 'bg-red-600 text-white'
-                                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                            }`}
-                                    >
-                                        {tag}
-                                    </button>
-                                );
-                            })}
+                            {availableTags
+                                .filter(tag => !editedPlaylist.filter_tags?.includes(tag))
+                                .map((tag) => {
+                                    const isSelected = editedPlaylist.exclude_tags?.includes(tag) || false;
+                                    return (
+                                        <button
+                                            key={tag}
+                                            type="button"
+                                            onClick={() => handleExcludeTagToggle(tag)}
+                                            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${isSelected
+                                                ? 'bg-red-600 text-white'
+                                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                }`}
+                                        >
+                                            {tag}
+                                        </button>
+                                    );
+                                })}
                         </div>
+                        {availableTags.filter(tag => !editedPlaylist.filter_tags?.includes(tag)).length === 0 && (
+                            <p className="text-sm text-gray-500 mt-2">所有標籤都已在「Tags / Genre」中被選擇</p>
+                        )}
                     </div>
 
                     {/* Language */}

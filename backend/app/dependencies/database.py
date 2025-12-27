@@ -62,6 +62,19 @@ class Database:
                     END $$;
                 """)
 
+                # 為現有表添加 filter_favorites 欄位（如果不存在）
+                cur.execute("""
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_name='smartplaylists' AND column_name='filter_favorites'
+                        ) THEN
+                            ALTER TABLE SmartPlaylists ADD COLUMN filter_favorites BOOLEAN;
+                        END IF;
+                    END $$;
+                """)
+
                 # 建立索引
                 cur.execute("""
                     CREATE INDEX IF NOT EXISTS idx_smartplaylists_name

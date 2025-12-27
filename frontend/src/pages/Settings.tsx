@@ -164,9 +164,9 @@ export default function Settings() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">系統設定</h1>
-          <div className="flex gap-2">
+        <div className="flex flex-col md:flex-row items-start gap-4 mt-4 mb-6 ">
+          <h1 className="text-2xl font-bold text-gray-900">系統設定</h1>
+          <div className="flex-1 flex gap-2 flex-wrap items-start justify-start md:justify-end">
             <input
               type="file"
               accept=".json"

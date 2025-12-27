@@ -2,7 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Plus, RefreshCcw, Edit, Trash2, Download, FileText, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown, Upload, Save, Folder, FolderX } from 'lucide-react';
+import { Plus, RefreshCcw, Edit, Trash2, Download, FileText, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown, Upload, Save, Folder, FolderX, ListMusic, Languages, Heart, SortDesc, Tags, CircleOff, Settings } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import PlaylistEditDialog from '@/components/PlaylistEditDialog';
 import TaskStatusDialog from '@/components/TaskStatusDialog';
 import { api } from '@/lib/api';
@@ -371,33 +377,40 @@ export default function PlaylistsPage() {
 
   return (
     <div className="mx-auto px-8 py-4">
-      <div className="flex justify-between items-center mt-4 mb-6">
+      <div className="flex flex-col md:flex-row items-start gap-4 mt-4 mb-6 ">
         <h1 className="text-2xl font-bold text-gray-900">播放清單管理</h1>
-        <div className="flex gap-3">
-          <Button
-            onClick={handleExportConfig}
-            disabled={exportingConfig}
-            variant="outline"
-          >
-            {exportingConfig ? (
-              <RefreshCcw className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            {exportingConfig ? '匯出中...' : '匯出配置'}
-          </Button>
-          <Button
-            onClick={handleImportConfigConfirm}
-            disabled={importingConfig}
-            variant="outline"
-          >
-            {importingConfig ? (
-              <RefreshCcw className="w-4 h-4 animate-spin" />
-            ) : (
-              <Upload className="w-4 h-4" />
-            )}
-            {importingConfig ? '匯入中...' : '匯入配置'}
-          </Button>
+        <div className="flex-1 flex gap-2 flex-wrap items-start justify-start md:justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                disabled={exportingConfig || importingConfig}
+              >
+                {exportingConfig || importingConfig ? (
+                  <RefreshCcw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Settings className="w-4 h-4" />
+                )}
+                配置管理
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={handleExportConfig}
+                disabled={exportingConfig}
+              >
+                <Download className="w-4 h-4" />
+                {exportingConfig ? '匯出中...' : '匯出配置'}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleImportConfigConfirm}
+                disabled={importingConfig}
+              >
+                <Upload className="w-4 h-4" />
+                {importingConfig ? '匯入中...' : '匯入配置'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             onClick={handleGenerateAllM3U}
             disabled={generatingAll}
@@ -406,7 +419,7 @@ export default function PlaylistsPage() {
             {generatingAll ? (
               <RefreshCcw className="w-4 h-4 animate-spin" />
             ) : (
-              <FolderPlus className="w-4 h-4" />
+              <ListMusic className="w-4 h-4" />
             )}
             {generatingAll ? '生成中...' : '批量生成 M3U'}
           </Button>
@@ -420,155 +433,154 @@ export default function PlaylistsPage() {
         </div>
       </div>
 
-      <div className="bg-white border rounded-2xl overflow-hidden">
-        <div>
-          {playlists.length === 0 ? (
-            <p className="text-gray-600 text-center py-8">尚無播放清單</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full table-auto border-collapse">
-                <thead>
-                  <tr className="border-b bg-gray-50">
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
-                      <button
-                        onClick={() => handleSort('name')}
-                        className="flex items-center gap-2 hover:text-gray-700 transition-colors"
-                      >
-                        Title
-                        {getSortIcon('name')}
-                      </button>
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
-                      FilterTags (篩選)
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
-                      ExcludeTags (排除)
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
-                      BaseFolder
-                    </th>
-                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
-                      FilterLanguages
-                    </th>
-                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
-                      FilterFavorites
-                    </th>
-                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-900 max-w-[150px] min-w-[120px]">
-                      Sort Method
-                    </th>
-                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-900 max-w-[200px] min-w-[100px]">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {getSortedPlaylists().map((playlist) => {
-                    return (
-                      <tr key={playlist.id} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-3 text-gray-900 font-medium max-w-[240px] min-w-[100px]" onClick={() => navigate(`/playlist/${playlist.id}`)}>
-                          <div className="flex items-center gap-2">
-                            {playlist.name}
-                            {playlist.is_system_level && (
-                              <FolderX className="size-4 text-muted-foreground" />
-                            )}
-                          </div>
-                        </td>
-                        <td className="space-x-2 space-y-2 px-4 py-3 text-gray-900 max-w-[200px] min-w-[120px]">
-                          {playlist.filter_tags_display.length > 0 ? (
-                            <span className="space-x-2 space-y-2">
-                              {playlist.filter_tags_display.map((tag, tagIndex) => (
-                                <span
-                                  key={tagIndex}
-                                  className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-900 rounded-full"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                            </span>
-                          ) : (
-                            <span className="text-gray-500">不篩選</span>
-                          )}
-                        </td>
-                        <td className="space-x-2 space-y-2 px-4 py-3 text-gray-900 max-w-[200px] min-w-[120px]">
-                          {playlist.exclude_tags_display.length > 0 ? (
-                            <span className="space-x-2 space-y-2">
-                              {playlist.exclude_tags_display.map((tag, tagIndex) => (
-                                <span
-                                  key={tagIndex}
-                                  className="inline-block px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                            </span>
-                          ) : (
-                            <span className="text-gray-500">不排除</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-left text-gray-900 max-w-[200px] min-w-[100px]">
-                          <div className='inline-flex items-center gap-2 py-0.5 px-3 text-xs rounded-full bg-gray-100'>
-                            <Folder className='size-3' />
-                            {playlist.base_folder}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-center text-gray-90 max-w-[200px] min-w-[100px]0">
-                          <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                            {playlist.filter_language_display}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center text-gray-900 max-w-[200px] min-w-[100px]">
-                          <span className="inline-block px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">
-                            {playlist.filter_favorites_display}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center text-gray-900 max-w-[150px] min-w-[120px]">
-                          <span className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                            {playlist.sort_method_display}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 max-w-[280px] min-w-[100px] text-center">
-                          <Button
-                            onClick={() => handleEditPlaylist(playlist)}
-                            variant="ghost"
-                            className="m-1 inline-flex items-center p-2 text-xs"
-                            title="編輯播放清單"
-                          >
-                            <Edit className="w-5 h-5" />
-                          </Button>
-                          <Button
-                            onClick={() => handleDownloadM3U(playlist)}
-                            variant="ghost"
-                            className="m-1 inline-flex items-center p-2 text-xs"
-                            title="下載 M3U 檔案"
-                          >
-                            <Download className="w-5 h-5" />
-                          </Button>
-                          <Button
-                            onClick={() => handleGenerateM3U(playlist)}
-                            variant="ghost"
-                            className="m-1 inline-flex items-center p-2 text-xs"
-                            title="生成 M3U 檔案到檔案系統"
-                          >
-                            <FileText className="w-5 h-5" />
-                          </Button>
-                          <Button
-                            onClick={() => handleDeletePlaylist(playlist)}
-                            variant="outlineDestructive"
-                            className="m-1 inline-flex items-center p-2 text-xs border-0"
-                            title="刪除播放清單"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+      {playlists.length === 0 ? (
+        <div className="bg-white border rounded-2xl p-8">
+          <p className="text-gray-600 text-center">尚無播放清單</p>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-4 mb-4">
+            <button
+              onClick={() => handleSort('name')}
+              className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+            >
+              排序：Title
+              {getSortIcon('name')}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {getSortedPlaylists().map((playlist) => (
+              <div
+                key={playlist.id}
+                className="bg-white border rounded-xl shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="p-5 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <h3
+                      className="text-lg font-semibold text-gray-900 cursor-pointer hover:text-blue-600"
+                      onClick={() => navigate(`/playlist/${playlist.id}`)}
+                    >
+                      {playlist.name}
+                    </h3>
+                    {playlist.is_system_level && (
+                      <FolderX className="size-5 text-muted-foreground flex-shrink-0 ml-2" />
+                    )}
+                  </div>
+
+                  <div className="space-y-3 text-sm">
+                    <div className='flex content-start gap-2'>
+                      <span className="text-gray-600 font-medium mt-0.5">
+                        <Tags className="size-4" />
+                      </span>
+                      {playlist.filter_tags_display.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {playlist.filter_tags_display.map((tag, tagIndex) => (
+                            <span
+                              key={tagIndex}
+                              className="inline-block px-2 py-0.5 text-xs bg-gray-100 text-gray-900 rounded-full"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-500">不篩選</span>
+                      )}
+                    </div>
+
+                    <div className='flex content-start gap-2'>
+                      <span className="text-gray-600 font-medium mt-0.5">
+                        <CircleOff className="size-4" />
+                      </span>
+                      {playlist.exclude_tags_display.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {playlist.exclude_tags_display.map((tag, tagIndex) => (
+                            <span
+                              key={tagIndex}
+                              className="inline-block px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded-full"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="mt-1 text-gray-500"> 不排除</span>
+                      )}
+                    </div>
+
+                    <hr className='my-4' />
+
+                    <div className='grid grid-cols-2 gap-3'>
+                      <div className='flex items-center'>
+                        <span className="text-gray-600 font-medium"><Folder className="size-4" /></span>
+                        <span className="ml-2 inline-flex items-center gap-1.5 py-0.5 px-2 text-xs rounded-full bg-gray-100">
+                          {playlist.base_folder}
+                        </span>
+                      </div>
+
+                      <div className='flex items-center'>
+                        <span className="text-gray-600 font-medium"><Languages className="size-4" /></span>
+                        <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">
+                          {playlist.filter_language_display}
+                        </span>
+                      </div>
+
+                      <div className='flex items-center'>
+                        <span className="text-gray-600 font-medium"><Heart className="size-4" /></span>
+                        <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded-full">
+                          {playlist.filter_favorites_display}
+                        </span>
+                      </div>
+
+                      <div className='flex items-center'>
+                        <span className="text-gray-600 font-medium"><SortDesc className="size-4" /></span>
+                        <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
+                          {playlist.sort_method_display}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t bg-gray-50 px-5 py-3 flex items-center justify-end gap-2 rounded-b-xl">
+                  <Button
+                    onClick={() => handleEditPlaylist(playlist)}
+                    variant="ghost"
+                    className="inline-flex items-center p-2 text-xs"
+                    title="編輯播放清單"
+                  >
+                    <Edit className="w-5 h-5" />
+                  </Button>
+                  <Button
+                    onClick={() => handleDownloadM3U(playlist)}
+                    variant="ghost"
+                    className="inline-flex items-center p-2 text-xs"
+                    title="下載 M3U 檔案"
+                  >
+                    <Download className="w-5 h-5" />
+                  </Button>
+                  <Button
+                    onClick={() => handleGenerateM3U(playlist)}
+                    variant="ghost"
+                    className="inline-flex items-center p-2 text-xs"
+                    title="生成 M3U 檔案到檔案系統"
+                  >
+                    <FileText className="w-5 h-5" />
+                  </Button>
+                  <Button
+                    onClick={() => handleDeletePlaylist(playlist)}
+                    variant="outlineDestructive"
+                    className="inline-flex items-center p-2 text-xs border-0"
+                    title="刪除播放清單"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="mt-4 text-sm text-gray-600">
         共 {playlists.length} 個播放清單

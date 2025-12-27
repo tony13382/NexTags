@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Heart, Edit, Plus, FolderPlus, RefreshCcw, Edit3 } from 'lucide-react';
+import { Search, Heart, Edit, Plus, RefreshCcw, Edit3, ListMusic } from 'lucide-react';
 import TagEditor from '@/components/TagEditor';
 import { api } from '@/lib/api';
 import { useGenerateAllM3U } from '@/hooks/useGenerateAllM3U';
@@ -164,11 +164,11 @@ export default function Home() {
   return (
     <div className="mx-auto px-8 py-4">
       <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground mt-4 mb-6 flex items-center gap-2">
+        <div className="flex flex-col md:flex-row items-start gap-4 mt-4 mb-6 ">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             歌曲管理
           </h1>
-          <div className="flex gap-2 mt-4 mb-6">
+          <div className="flex-1 flex gap-2 flex-wrap items-start justify-start md:justify-end">
             <Button
               variant='outline'
               onClick={handleGenerateAllM3U}
@@ -178,9 +178,9 @@ export default function Home() {
               {generatingAll ? (
                 <RefreshCcw className="w-4 h-4 animate-spin" />
               ) : (
-                <FolderPlus className="w-4 h-4" />
+                <ListMusic className="w-4 h-4" />
               )}
-              {generatingAll ? '生成中...' : '批量生成 M3U'}
+              {generatingAll ? '生成中...' : '生成 M3U'}
             </Button>
             <Button
               className="flex items-center gap-2"

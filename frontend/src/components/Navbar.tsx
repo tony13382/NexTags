@@ -7,14 +7,14 @@ export default function Navbar() {
 
   return (
     <nav className="bg-white shadow-sm border-b">
-      <div className="mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+      <div className="mx-auto px-4 py-3">
+        <div className="flex gap-2 justify-between">
           <div className="flex-shrink-0 flex items-center">
             <Link to="/" className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-gray-900">音樂管理系統</h1>
             </Link>
           </div>
-          <div className="hidden sm:flex sm:space-x-0 items-center">
+          <div className="flex items-center">
             <Link
               to="/"
               className={`flex px-4 py-2 gap-2 rounded-full text-sm font-medium transition-colors ${pathname === '/'
