@@ -51,6 +51,7 @@ def set_config(config_key: str, config_value: Any, description: str = None):
             conn.commit()
 
 
+@router.get("")
 @router.get("/")
 async def get_all_configs():
     """取得所有設定"""
@@ -126,6 +127,7 @@ async def update_config(config_key: str, update: ConfigUpdate):
         raise HTTPException(status_code=500, detail=error_msg)
 
 
+@router.post("")
 @router.post("/")
 async def create_or_update_config(update: ConfigUpdate):
     """建立或更新設定"""

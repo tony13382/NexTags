@@ -87,7 +87,7 @@ export default function Home() {
       if (selectedLanguage) params.filterLanguage = selectedLanguage;
       if (showFavorites) params.filterFavorite = 'true';
 
-      const data: ApiResponse = await api.get('audios/', params);
+      const data: ApiResponse = await api.get('audios', params);
 
       setSongs(data.audio_files);
       setAllowFolders(data.allow_folders);

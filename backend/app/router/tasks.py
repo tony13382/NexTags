@@ -31,6 +31,7 @@ async def get_task_status(task_id: str) -> Dict[str, Any]:
         logger.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)
 
+@router.get("")
 @router.get("/")
 async def get_all_tasks(
     limit: int = Query(50, ge=1, le=200, description="返回結果數量限制"),

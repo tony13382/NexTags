@@ -248,6 +248,7 @@ def _get_file_modification_time(file_path: str) -> float:
         return 0
 
 
+@router.get("")
 @router.get("/")
 async def get_audios(
     p: Optional[int] = Query(1, ge=1, description="頁數，從1開始"),

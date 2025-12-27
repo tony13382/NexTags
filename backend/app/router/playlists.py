@@ -419,6 +419,7 @@ def enrich_playlist_data(playlist_data: Dict[str, Any], config: Dict[str, Any]) 
 
     return enriched_data
 
+@router.get("", response_model=SmartPlaylistResponse)
 @router.get("/", response_model=SmartPlaylistResponse)
 async def get_playlists():
     """取得所有智慧播放清單"""
@@ -449,6 +450,7 @@ async def get_playlists():
         logger.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)
 
+@router.post("", response_model=SmartPlaylistResponse)
 @router.post("/", response_model=SmartPlaylistResponse)
 async def create_playlist(playlist: SmartPlaylistCreate):
     """建立新的智慧播放清單"""
