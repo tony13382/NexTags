@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Plus, ListMusic, RefreshCcw, Edit, Trash2, Download, FileText, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, ListMusic, RefreshCcw, Edit, Trash2, Download, FileText, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown, Upload, Save } from 'lucide-react';
 import PlaylistEditDialog from '@/components/PlaylistEditDialog';
 import TaskStatusDialog from '@/components/TaskStatusDialog';
 import { api } from '@/lib/api';
@@ -46,6 +46,11 @@ export default function PlaylistsPage() {
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<'name' | null>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [exportingConfig, setExportingConfig] = useState(false);
+  const [importingConfig, setImportingConfig] = useState(false);
+  const [importConfirmOpen, setImportConfirmOpen] = useState(false);
+  const [replaceExisting, setReplaceExisting] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
   // 使用批量生成 M3U 的 hook
   const { generatingAll, successMessage, error, handleGenerateAllM3U, setSuccessMessage, setError } = useGenerateAllM3U();
@@ -260,6 +265,117 @@ export default function PlaylistsPage() {
     }
   };
 
+  const handleExportConfig = () => {
+    try {
+      setExportingConfig(true);
+      setError(null);
+      setSuccessMessage(null);
+
+      // 創建下載連結
+      const downloadUrl = api.url('playlists/export-config');
+
+      // 創建隐藏的 a 標籤來觸發下載
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `playlist_config_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setSuccessMessage('開始下載播放清單配置檔案');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('下載失敗，請稍後再試');
+      console.error('Error exporting config:', err);
+    } finally {
+      setExportingConfig(false);
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.type === 'application/json' || file.name.endsWith('.json')) {
+        setUploadedFile(file);
+        setImportConfirmOpen(true);
+      } else {
+        setError('請選擇 JSON 檔案');
+      }
+    }
+  };
+
+  const handleImportConfigConfirm = () => {
+    // 觸發檔案選擇
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = (e) => {
+      const event = e as unknown as React.ChangeEvent<HTMLInputElement>;
+      handleFileUpload(event);
+    };
+    input.click();
+  };
+
+  const confirmImportConfig = async () => {
+    if (!uploadedFile) {
+      setError('請先選擇要匯入的檔案');
+      return;
+    }
+
+    try {
+      setImportingConfig(true);
+      setError(null);
+      setSuccessMessage(null);
+      setImportConfirmOpen(false);
+
+      // 讀取檔案內容
+      const fileContent = await uploadedFile.text();
+      const configData = JSON.parse(fileContent);
+
+      // 先將檔案上傳到伺服器（儲存為 playlist_config.json）
+      const formData = new FormData();
+      formData.append('file', uploadedFile);
+
+      // 使用 fetch 上傳檔案
+      const uploadResponse = await fetch(api.url('playlists/upload-config'), {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('上傳檔案失敗');
+      }
+
+      // 然後執行匯入
+      const data = await api.post(`playlists/import-config?replace_existing=${replaceExisting}`);
+
+      if (data.success) {
+        setSuccessMessage(data.message);
+        setTimeout(() => setSuccessMessage(null), 5000);
+        // 重新載入播放清單
+        await fetchPlaylists();
+      } else {
+        setError(data.message || '匯入配置失敗');
+      }
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        setError('JSON 檔案格式錯誤');
+      } else {
+        setError('匯入失敗，請稍後再試');
+      }
+      console.error('Error importing config:', err);
+    } finally {
+      setImportingConfig(false);
+      setUploadedFile(null);
+    }
+  };
+
+  const cancelImportConfig = () => {
+    setImportConfirmOpen(false);
+    setReplaceExisting(false);
+    setUploadedFile(null);
+  };
+
   if (loading) {
     return (
       <div className="mx-auto px-8 py-4">
@@ -290,6 +406,30 @@ export default function PlaylistsPage() {
       <div className="flex justify-between items-center mt-4 mb-6">
         <h1 className="text-2xl font-bold text-gray-900">播放清單管理</h1>
         <div className="flex gap-3">
+          <Button
+            onClick={handleExportConfig}
+            disabled={exportingConfig}
+            variant="outline"
+          >
+            {exportingConfig ? (
+              <RefreshCcw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            {exportingConfig ? '匯出中...' : '匯出配置'}
+          </Button>
+          <Button
+            onClick={handleImportConfigConfirm}
+            disabled={importingConfig}
+            variant="outline"
+          >
+            {importingConfig ? (
+              <RefreshCcw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4" />
+            )}
+            {importingConfig ? '匯入中...' : '匯入配置'}
+          </Button>
           <Button
             onClick={handleGenerateAllM3U}
             disabled={generatingAll}
@@ -526,6 +666,65 @@ export default function PlaylistsPage() {
                   }`}
               >
                 {loading ? '刪除中...' : '確認刪除'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 匯入確認對話框 */}
+      {importConfirmOpen && uploadedFile && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              確認匯入播放清單配置
+            </h3>
+            <div className="mb-4 p-3 bg-gray-50 rounded border border-gray-200">
+              <p className="text-sm text-gray-600 mb-1">檔案名稱：</p>
+              <p className="text-sm font-medium text-gray-900">{uploadedFile.name}</p>
+            </div>
+            <div className="mb-6">
+              <label className="flex items-center space-x-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={replaceExisting}
+                  onChange={(e) => setReplaceExisting(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">
+                  替換模式：刪除所有現有播放清單後再匯入
+                </span>
+              </label>
+              <p className="text-xs text-gray-500 mt-2 ml-7">
+                {replaceExisting ? (
+                  <span className="text-red-600 font-medium">
+                    警告：這將刪除所有現有的播放清單，並替換為配置檔中的播放清單。此操作無法復原。
+                  </span>
+                ) : (
+                  <span className="text-blue-600">
+                    僅會新增配置檔中不存在的播放清單，已存在的播放清單將被跳過。
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={cancelImportConfig}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmImportConfig}
+                disabled={importingConfig}
+                className={`px-4 py-2 text-white rounded ${importingConfig
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : replaceExisting
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+              >
+                {importingConfig ? '匯入中...' : '確認匯入'}
               </button>
             </div>
           </div>

@@ -4,7 +4,7 @@ import glob
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Path as FastAPIPath, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Path as FastAPIPath, Query, BackgroundTasks, UploadFile, File
 from fastapi.responses import Response
 from app.schemas.playlists import (
     SmartPlaylist,
@@ -1135,3 +1135,236 @@ async def get_batch_generation_status():
         "started_at": _batch_task_status["started_at"],
         "completed_at": _batch_task_status["completed_at"]
     }
+
+
+@router.get("/export-config")
+@router.get("/export-config/")
+async def export_playlists_config():
+    """匯出所有播放清單配置為 JSON 檔案並下載"""
+    try:
+        if db is None:
+            raise HTTPException(status_code=500, detail="資料庫未初始化")
+
+        # 從資料庫讀取所有播放清單
+        with db.get_connection() as conn:
+            with db.get_cursor(conn) as cur:
+                cur.execute("""
+                    SELECT id, name, base_folder, filter_language, filter_tags,
+                           exclude_tags, sort_by, is_system_level, created_at, updated_at
+                    FROM SmartPlaylists
+                    ORDER BY id
+                """)
+                playlists = cur.fetchall()
+
+        # 轉換為可匯出的格式
+        export_data = {
+            "version": "1.0",
+            "exported_at": datetime.now().isoformat(),
+            "playlists": []
+        }
+
+        for playlist in playlists:
+            export_data["playlists"].append({
+                "name": playlist["name"],
+                "base_folder": playlist["base_folder"],
+                "filter_language": playlist["filter_language"],
+                "filter_tags": playlist["filter_tags"] if playlist["filter_tags"] else [],
+                "exclude_tags": playlist["exclude_tags"] if playlist["exclude_tags"] else [],
+                "sort_by": playlist["sort_by"],
+                "is_system_level": playlist["is_system_level"]
+            })
+
+        # 同時儲存到伺服器檔案（供匯入使用）
+        config_file_path = "/app/data/playlist_config.json"
+        with open(config_file_path, 'w', encoding='utf-8') as f:
+            json.dump(export_data, f, ensure_ascii=False, indent=2)
+
+        logger.info(f"成功匯出 {len(playlists)} 個播放清單配置")
+
+        # 將 JSON 轉換為字串以供下載
+        json_content = json.dumps(export_data, ensure_ascii=False, indent=2)
+
+        # 生成檔案名稱（包含時間戳）
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"playlist_config_{timestamp}.json"
+
+        # 返回 JSON 檔案供下載
+        return Response(
+            content=json_content.encode('utf-8'),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Type": "application/json; charset=utf-8"
+            }
+        )
+
+    except Exception as e:
+        error_msg = f"匯出播放清單配置失敗: {str(e)}"
+        logger.error(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
+@router.post("/upload-config")
+@router.post("/upload-config/")
+async def upload_playlists_config(file: UploadFile = File(...)):
+    """上傳播放清單配置檔案"""
+    try:
+        # 檢查檔案類型
+        if not file.filename or not file.filename.endswith('.json'):
+            raise HTTPException(status_code=400, detail="請上傳 JSON 檔案")
+
+        # 讀取檔案內容
+        content = await file.read()
+
+        # 驗證 JSON 格式
+        try:
+            json_data = json.loads(content.decode('utf-8'))
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="JSON 檔案格式錯誤")
+
+        # 檢查必要欄位
+        if "playlists" not in json_data:
+            raise HTTPException(status_code=400, detail="配置檔案格式錯誤：缺少 'playlists' 欄位")
+
+        # 儲存到伺服器
+        config_file_path = "/app/data/playlist_config.json"
+        with open(config_file_path, 'wb') as f:
+            f.write(content)
+
+        logger.info(f"成功上傳配置檔案：{file.filename}，包含 {len(json_data['playlists'])} 個播放清單")
+
+        return {
+            "success": True,
+            "message": f"成功上傳配置檔案，包含 {len(json_data['playlists'])} 個播放清單",
+            "file_path": config_file_path,
+            "total_playlists": len(json_data['playlists'])
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = f"上傳配置檔案失敗: {str(e)}"
+        logger.error(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
+@router.post("/import-config")
+@router.post("/import-config/")
+async def import_playlists_config(
+    replace_existing: bool = Query(False, description="是否替換現有的播放清單（True）或僅新增不存在的（False）")
+):
+    """從 playlist_config.json 匯入播放清單配置"""
+    try:
+        if db is None:
+            raise HTTPException(status_code=500, detail="資料庫未初始化")
+
+        # 讀取配置檔案
+        config_file_path = "/app/data/playlist_config.json"
+        if not os.path.exists(config_file_path):
+            raise HTTPException(status_code=404, detail=f"找不到配置檔案: {config_file_path}")
+
+        with open(config_file_path, 'r', encoding='utf-8') as f:
+            import_data = json.load(f)
+
+        if "playlists" not in import_data:
+            raise HTTPException(status_code=400, detail="配置檔案格式錯誤：缺少 'playlists' 欄位")
+
+        playlists_to_import = import_data["playlists"]
+
+        # 如果需要替換現有，先清空資料庫
+        if replace_existing:
+            with db.get_connection() as conn:
+                with db.get_cursor(conn) as cur:
+                    cur.execute("DELETE FROM SmartPlaylists")
+                    conn.commit()
+            logger.info("已清空現有播放清單資料")
+
+        # 匯入播放清單
+        imported_count = 0
+        skipped_count = 0
+        updated_count = 0
+
+        with db.get_connection() as conn:
+            with db.get_cursor(conn) as cur:
+                for playlist_data in playlists_to_import:
+                    playlist_name = playlist_data.get("name")
+
+                    if not playlist_name:
+                        logger.warning("跳過無名稱的播放清單")
+                        skipped_count += 1
+                        continue
+
+                    # 檢查是否已存在
+                    cur.execute(
+                        "SELECT id FROM SmartPlaylists WHERE name = %s",
+                        (playlist_name,)
+                    )
+                    existing = cur.fetchone()
+
+                    if existing and not replace_existing:
+                        logger.info(f"播放清單 '{playlist_name}' 已存在，跳過")
+                        skipped_count += 1
+                        continue
+
+                    # 插入或更新播放清單
+                    if existing:
+                        # 更新現有播放清單
+                        cur.execute("""
+                            UPDATE SmartPlaylists
+                            SET base_folder = %s,
+                                filter_language = %s,
+                                filter_tags = %s,
+                                exclude_tags = %s,
+                                sort_by = %s,
+                                is_system_level = %s,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE name = %s
+                        """, (
+                            playlist_data.get("base_folder", ""),
+                            playlist_data.get("filter_language"),
+                            playlist_data.get("filter_tags", []),
+                            playlist_data.get("exclude_tags", []),
+                            playlist_data.get("sort_by", "file_creation_time"),
+                            playlist_data.get("is_system_level", False),
+                            playlist_name
+                        ))
+                        updated_count += 1
+                        logger.info(f"更新播放清單: {playlist_name}")
+                    else:
+                        # 插入新播放清單
+                        cur.execute("""
+                            INSERT INTO SmartPlaylists
+                            (name, base_folder, filter_language, filter_tags, exclude_tags, sort_by, is_system_level)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            playlist_name,
+                            playlist_data.get("base_folder", ""),
+                            playlist_data.get("filter_language"),
+                            playlist_data.get("filter_tags", []),
+                            playlist_data.get("exclude_tags", []),
+                            playlist_data.get("sort_by", "file_creation_time"),
+                            playlist_data.get("is_system_level", False)
+                        ))
+                        imported_count += 1
+                        logger.info(f"新增播放清單: {playlist_name}")
+
+                conn.commit()
+
+        result_message = f"匯入完成：新增 {imported_count} 個，更新 {updated_count} 個，跳過 {skipped_count} 個"
+        logger.info(result_message)
+
+        return {
+            "success": True,
+            "message": result_message,
+            "imported_count": imported_count,
+            "updated_count": updated_count,
+            "skipped_count": skipped_count,
+            "total_in_file": len(playlists_to_import)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = f"匯入播放清單配置失敗: {str(e)}"
+        logger.error(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
