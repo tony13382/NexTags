@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Plus, RefreshCcw, Edit, Trash2, Download, FileText, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown, Upload, Save, Folder, FolderX, ListMusic, Languages, Heart, SortDesc, Tags, CircleOff, Settings } from 'lucide-react';
+import { Plus, RefreshCcw, Edit, Trash2, Download, FileText, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown, Upload, Save, Folder, FolderX, ListMusic, Languages, Heart, SortDesc, Tags, CircleOff, Settings, MoreVertical, FolderInput, FolderSync } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -452,19 +452,53 @@ export default function PlaylistsPage() {
             {getSortedPlaylists().map((playlist) => (
               <div
                 key={playlist.id}
-                className="bg-white border rounded-xl shadow-sm hover:shadow-md transition-shadow"
+                className="bg-white border rounded-xl hover:shadow-md transition-shadow"
               >
                 <div className="p-5 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <h3
-                      className="text-lg font-semibold text-gray-900 cursor-pointer hover:text-blue-600"
-                      onClick={() => navigate(`/playlist/${playlist.id}`)}
-                    >
-                      {playlist.name}
-                    </h3>
-                    {playlist.is_system_level && (
-                      <FolderX className="size-5 text-muted-foreground flex-shrink-0 ml-2" />
-                    )}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      <h3
+                        className="flex items-center text-lg font-semibold text-gray-900 cursor-pointer hover:text-blue-600 flex-1 gap-2"
+                        onClick={() => navigate(`/playlist/${playlist.id}`)}
+                      >
+                        {playlist.name}
+                        {playlist.is_system_level && (
+                          <FolderX className="size-5 text-muted-foreground flex-shrink-0" />
+                        )}
+                      </h3>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="h-8 w-8 p-0 flex-shrink-0"
+                          title="更多操作"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEditPlaylist(playlist)}>
+                          <Edit className="w-4 h-4" />
+                          編輯播放清單
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDownloadM3U(playlist)}>
+                          <Download className="w-4 h-4" />
+                          下載 M3U 檔案
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleGenerateM3U(playlist)}>
+                          <FolderSync className="w-4 h-4" />
+                          生成 M3U 到檔案系統
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleDeletePlaylist(playlist)}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          刪除播放清單
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
                   <div className="space-y-3 text-sm">
@@ -512,7 +546,7 @@ export default function PlaylistsPage() {
 
                     <div className='grid grid-cols-2 gap-3'>
                       <div className='flex items-center'>
-                        <span className="text-gray-600 font-medium"><Folder className="size-4" /></span>
+                        <span className="text-gray-600 font-medium"><FolderInput className="size-4" /></span>
                         <span className="ml-2 inline-flex items-center gap-1.5 py-0.5 px-2 text-xs rounded-full bg-gray-100">
                           {playlist.base_folder}
                         </span>
@@ -540,41 +574,6 @@ export default function PlaylistsPage() {
                       </div>
                     </div>
                   </div>
-                </div>
-
-                <div className="border-t bg-gray-50 px-5 py-3 flex items-center justify-end gap-2 rounded-b-xl">
-                  <Button
-                    onClick={() => handleEditPlaylist(playlist)}
-                    variant="ghost"
-                    className="inline-flex items-center p-2 text-xs"
-                    title="編輯播放清單"
-                  >
-                    <Edit className="w-5 h-5" />
-                  </Button>
-                  <Button
-                    onClick={() => handleDownloadM3U(playlist)}
-                    variant="ghost"
-                    className="inline-flex items-center p-2 text-xs"
-                    title="下載 M3U 檔案"
-                  >
-                    <Download className="w-5 h-5" />
-                  </Button>
-                  <Button
-                    onClick={() => handleGenerateM3U(playlist)}
-                    variant="ghost"
-                    className="inline-flex items-center p-2 text-xs"
-                    title="生成 M3U 檔案到檔案系統"
-                  >
-                    <FileText className="w-5 h-5" />
-                  </Button>
-                  <Button
-                    onClick={() => handleDeletePlaylist(playlist)}
-                    variant="outlineDestructive"
-                    className="inline-flex items-center p-2 text-xs border-0"
-                    title="刪除播放清單"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </Button>
                 </div>
               </div>
             ))}

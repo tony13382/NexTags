@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
-import { FolderInput, Languages, Tag, Trash2, Download, Upload } from 'lucide-react';
+import { FolderInput, Languages, Tag, Trash2, Download, Upload, Settings as SettingsIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 
 interface Config {
@@ -174,22 +180,24 @@ export default function Settings() {
               className="hidden"
               id="import-config"
             />
-            <Button
-              variant="outline"
-              onClick={() => document.getElementById('import-config')?.click()}
-              className="flex items-center gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              匯入設定
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleExportConfig}
-              className="flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" />
-              匯出設定
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <SettingsIcon className="w-4 h-4" />
+                  配置管理
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExportConfig}>
+                  <Download className="w-4 h-4" />
+                  匯出設定
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => document.getElementById('import-config')?.click()}>
+                  <Upload className="w-4 h-4" />
+                  匯入設定
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
