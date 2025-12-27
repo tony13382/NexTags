@@ -1,0 +1,39 @@
+# Python virtual environments
+.venv
+venv
+env
+ENV
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+.tox
+
+# Build
+dist
+build
+*.egg-info
+
+# Local development
+.env.local
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
