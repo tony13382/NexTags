@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
-import { FolderInput, Languages, Tag, Trash2, Download, Upload, Settings as SettingsIcon } from 'lucide-react';
+import { FolderInput, Languages, Tag, Trash2, Download, Upload, Settings as SettingsIcon, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -11,6 +11,65 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+function SortableTagItem({
+  id,
+  tag,
+  index,
+  onChange,
+  onDelete,
+}: {
+  id: string;
+  tag: string;
+  index: number;
+  onChange: (index: number, value: string) => void;
+  onDelete: (index: number) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2">
+      <button type="button" className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 touch-none" {...attributes} {...listeners}>
+        <GripVertical className="size-4" />
+      </button>
+      <input
+        type="text"
+        value={tag}
+        onChange={(e) => onChange(index, e.target.value)}
+        className="flex-1 px-3 py-2 border rounded"
+      />
+      <button
+        onClick={() => onDelete(index)}
+        className="px-3 py-2 text-gray-500 hover:text-red-500 rounded"
+      >
+        <Trash2 className="size-4" />
+      </button>
+    </div>
+  );
+}
 
 interface Config {
   supported_tags: string[];
@@ -34,6 +93,22 @@ export default function Settings() {
   const [newLangCode, setNewLangCode] = useState('');
   const [newLangName, setNewLangName] = useState('');
   const [newFolder, setNewFolder] = useState('');
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const tagIds = editingTags.map((_, i) => `tag-${i}`);
+
+  const handleTagDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = tagIds.indexOf(active.id as string);
+      const newIndex = tagIds.indexOf(over.id as string);
+      setEditingTags(arrayMove(editingTags, oldIndex, newIndex));
+    }
+  };
 
   useEffect(() => {
     fetchConfig();
@@ -215,28 +290,30 @@ export default function Settings() {
                 支援的標籤
               </h2>
               <div className="space-y-2 mb-4">
-                {editingTags.map((tag, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={tag}
-                      onChange={(e) => {
-                        const newTags = [...editingTags];
-                        newTags[index] = e.target.value;
-                        setEditingTags(newTags);
-                      }}
-                      className="flex-1 px-3 py-2 border rounded"
-                    />
-                    <button
-                      onClick={() => {
-                        setEditingTags(editingTags.filter((_, i) => i !== index));
-                      }}
-                      className="px-3 py-2 text-gray-500 hover:text-red-500 rounded"
-                    >
-                      <Trash2 className='size-4' />
-                    </button>
-                  </div>
-                ))}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleTagDragEnd}
+                >
+                  <SortableContext items={tagIds} strategy={verticalListSortingStrategy}>
+                    {editingTags.map((tag, index) => (
+                      <SortableTagItem
+                        key={tagIds[index]}
+                        id={tagIds[index]}
+                        tag={tag}
+                        index={index}
+                        onChange={(i, value) => {
+                          const newTags = [...editingTags];
+                          newTags[i] = value;
+                          setEditingTags(newTags);
+                        }}
+                        onDelete={(i) => {
+                          setEditingTags(editingTags.filter((_, idx) => idx !== i));
+                        }}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
               </div>
               <div className="flex items-center gap-2">
                 <input

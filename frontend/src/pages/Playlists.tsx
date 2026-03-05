@@ -504,44 +504,56 @@ export default function PlaylistsPage() {
                   </div>
 
                   <div className="space-y-3 text-sm">
+                    {/* 標籤與排除標籤同一行 */}
                     <div className='flex content-start gap-2'>
                       <span className="text-gray-600 font-medium mt-0.5">
                         <Tags className="size-4" />
                       </span>
-                      {playlist.filter_tags_display.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {playlist.filter_tags_display.map((tag, tagIndex) => (
-                            <span
-                              key={tagIndex}
-                              className="inline-block px-2 py-0.5 text-xs bg-gray-100 text-gray-900 rounded-full"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-gray-500">不篩選</span>
-                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {(() => {
+                          const hasTags = playlist.filter_tags_display.length > 0 && playlist.filter_tags_display[0] !== '不篩選';
+                          const hasExclude = playlist.exclude_tags_display.length > 0 && playlist.exclude_tags_display[0] !== '不篩選';
+                          if (!hasTags && !hasExclude) {
+                            return <span className="text-gray-500 text-xs py-0.5">不篩選</span>;
+                          }
+                          return (
+                            <>
+                              {hasTags && playlist.filter_tags_display.map((tag, tagIndex) => (
+                                <span key={tagIndex} className="inline-block px-2 py-0.5 text-xs bg-gray-100 text-gray-900 rounded-full">{tag}</span>
+                              ))}
+                              {hasExclude && playlist.exclude_tags_display.map((tag, tagIndex) => (
+                                <span key={`ex-${tagIndex}`} className="inline-block px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded-full">{tag}</span>
+                              ))}
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
 
+                    {/* 語言與排除語言 */}
                     <div className='flex content-start gap-2'>
                       <span className="text-gray-600 font-medium mt-0.5">
-                        <CircleOff className="size-4" />
+                        <Languages className="size-4" />
                       </span>
-                      {playlist.exclude_tags_display.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {playlist.exclude_tags_display.map((tag, tagIndex) => (
-                            <span
-                              key={tagIndex}
-                              className="inline-block px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded-full"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="mt-1 text-gray-500"> 不排除</span>
-                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {(() => {
+                          const hasLang = playlist.filter_language.length > 0;
+                          const hasExclude = playlist.exclude_language && playlist.exclude_language.length > 0;
+                          if (!hasLang && !hasExclude) {
+                            return <span className="text-gray-500 text-xs py-0.5">不篩選</span>;
+                          }
+                          return (
+                            <>
+                              {hasLang && playlist.filter_language_display.map((name, i) => (
+                                <span key={i} className="inline-block px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">{name}</span>
+                              ))}
+                              {hasExclude && playlist.exclude_language_display.map((name, i) => (
+                                <span key={`ex-${i}`} className="inline-block px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded-full">{name}</span>
+                              ))}
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
 
                     <hr className='my-4' />
@@ -552,22 +564,6 @@ export default function PlaylistsPage() {
                         <span className="ml-2 inline-flex items-center gap-1.5 py-0.5 px-2 text-xs rounded-full bg-gray-100">
                           {playlist.base_folder}
                         </span>
-                      </div>
-
-                      <div className='flex items-center flex-wrap gap-1'>
-                        <span className="text-gray-600 font-medium"><Languages className="size-4" /></span>
-                        {playlist.filter_language_display.map((name, i) => (
-                          <span key={i} className="inline-block px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">
-                            {name}
-                          </span>
-                        ))}
-                        {playlist.exclude_language && playlist.exclude_language.length > 0 && (
-                          playlist.exclude_language_display.map((name, i) => (
-                            <span key={`ex-${i}`} className="inline-block px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded-full">
-                              排除: {name}
-                            </span>
-                          ))
-                        )}
                       </div>
 
                       <div className='flex items-center'>

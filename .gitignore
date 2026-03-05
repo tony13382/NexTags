@@ -49,3 +49,6 @@ build/
 wheels/
 /backend/app/data/smart_playlist.json
 /backend/app/data/tags_cache.json
+
+# 忽略備份資料夾
+/backup
