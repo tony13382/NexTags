@@ -75,6 +75,51 @@ class Database:
                     END $$;
                 """)
 
+                # 為現有表添加 exclude_language 欄位（如果不存在）
+                cur.execute("""
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_name='smartplaylists' AND column_name='exclude_language'
+                        ) THEN
+                            ALTER TABLE SmartPlaylists ADD COLUMN exclude_language TEXT[];
+                        END IF;
+                    END $$;
+                """)
+
+                # 將 filter_language 從 VARCHAR 轉為 TEXT[]（支援多選）
+                cur.execute("""
+                    DO $$
+                    BEGIN
+                        IF EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_name='smartplaylists' AND column_name='filter_language'
+                            AND data_type = 'character varying'
+                        ) THEN
+                            ALTER TABLE SmartPlaylists
+                                ALTER COLUMN filter_language TYPE TEXT[]
+                                USING CASE WHEN filter_language IS NOT NULL THEN ARRAY[filter_language] ELSE NULL END;
+                        END IF;
+                    END $$;
+                """)
+
+                # 將 exclude_language 從 VARCHAR 轉為 TEXT[]（支援多選）
+                cur.execute("""
+                    DO $$
+                    BEGIN
+                        IF EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_name='smartplaylists' AND column_name='exclude_language'
+                            AND data_type = 'character varying'
+                        ) THEN
+                            ALTER TABLE SmartPlaylists
+                                ALTER COLUMN exclude_language TYPE TEXT[]
+                                USING CASE WHEN exclude_language IS NOT NULL THEN ARRAY[exclude_language] ELSE NULL END;
+                        END IF;
+                    END $$;
+                """)
+
                 # 建立索引
                 cur.execute("""
                     CREATE INDEX IF NOT EXISTS idx_smartplaylists_name

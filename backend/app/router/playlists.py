@@ -62,7 +62,7 @@ def load_playlists() -> List[Dict[str, Any]]:
         with db.get_connection() as conn:
             with db.get_cursor(conn) as cur:
                 cur.execute("""
-                    SELECT id, name, base_folder, filter_language, filter_tags, exclude_tags, sort_by,
+                    SELECT id, name, base_folder, filter_language, exclude_language, filter_tags, exclude_tags, sort_by,
                            is_system_level, filter_favorites, created_at, updated_at
                     FROM SmartPlaylists
                     ORDER BY id
@@ -85,6 +85,10 @@ def load_playlists() -> List[Dict[str, Any]]:
                         playlist['filter_tags'] = []
                     if playlist.get('exclude_tags') is None:
                         playlist['exclude_tags'] = []
+                    if playlist.get('filter_language') is None:
+                        playlist['filter_language'] = []
+                    if playlist.get('exclude_language') is None:
+                        playlist['exclude_language'] = []
                     playlists.append(playlist)
 
                 return playlists
@@ -107,7 +111,7 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
                     # 更新現有播放清單
                     cur.execute("""
                         UPDATE SmartPlaylists
-                        SET name = %s, base_folder = %s, filter_language = %s,
+                        SET name = %s, base_folder = %s, filter_language = %s, exclude_language = %s,
                             filter_tags = %s, exclude_tags = %s, sort_by = %s, is_system_level = %s,
                             filter_favorites = %s, updated_at = CURRENT_TIMESTAMP
                         WHERE id = %s
@@ -116,6 +120,7 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
                         playlist['name'],
                         playlist['base_folder'],
                         playlist.get('filter_language'),
+                        playlist.get('exclude_language'),
                         playlist.get('filter_tags', []),
                         playlist.get('exclude_tags', []),
                         sort_value,
@@ -126,13 +131,14 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
                 else:
                     # 建立新播放清單
                     cur.execute("""
-                        INSERT INTO SmartPlaylists (name, base_folder, filter_language, filter_tags, exclude_tags, sort_by, is_system_level, filter_favorites)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO SmartPlaylists (name, base_folder, filter_language, exclude_language, filter_tags, exclude_tags, sort_by, is_system_level, filter_favorites)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                     """, (
                         playlist['name'],
                         playlist['base_folder'],
                         playlist.get('filter_language'),
+                        playlist.get('exclude_language'),
                         playlist.get('filter_tags', []),
                         playlist.get('exclude_tags', []),
                         sort_value,
@@ -204,10 +210,16 @@ def filter_songs_by_playlist(playlist: Dict[str, Any], audio_files: List[str]) -
             else:
                 tags = redis_cache.get_cached_tags_with_fallback(file_path)
             
-            # 檢查語言過濾條件
+            # 檢查語言過濾條件（多選，符合任一即可）
             if playlist.get('filter_language'):
                 file_language = tags.get('language', '').lower()
-                if file_language != playlist['filter_language'].lower():
+                if file_language not in [lang.lower() for lang in playlist['filter_language']]:
+                    continue
+
+            # 檢查排除語言條件（多選，符合任一即排除）
+            if playlist.get('exclude_language'):
+                file_language = tags.get('language', '').lower()
+                if file_language in [lang.lower() for lang in playlist['exclude_language']]:
                     continue
             
             # 檢查標籤過濾條件
@@ -361,13 +373,13 @@ def sort_songs_by_title(songs: List[str]) -> List[str]:
         return songs
 
 
-def get_language_display_name(language_code: str, config: Dict[str, Any]) -> str:
-    """根據語言代碼獲取顯示名稱"""
-    if not language_code:
-        return "不篩選"
-    
+def get_language_display_names(language_codes: List[str], config: Dict[str, Any]) -> List[str]:
+    """根據語言代碼列表獲取顯示名稱列表"""
+    if not language_codes:
+        return ["不篩選"]
+
     supported_languages = config.get("supported_languages", {})
-    return supported_languages.get(language_code, language_code)
+    return [supported_languages.get(code, code) for code in language_codes]
 
 def get_tags_display_names(tags: List[str], config: Dict[str, Any]) -> List[str]:
     """獲取標籤的顯示名稱（目前標籤直接使用中文名稱）"""
@@ -392,8 +404,13 @@ def enrich_playlist_data(playlist_data: Dict[str, Any], config: Dict[str, Any]) 
     enriched_data = playlist_data.copy()
 
     # 加入語言顯示名稱
-    enriched_data["filter_language_display"] = get_language_display_name(
-        playlist_data.get("filter_language"), config
+    enriched_data["filter_language_display"] = get_language_display_names(
+        playlist_data.get("filter_language", []), config
+    )
+
+    # 加入排除語言顯示名稱
+    enriched_data["exclude_language_display"] = get_language_display_names(
+        playlist_data.get("exclude_language", []), config
     )
 
     # 加入標籤顯示名稱
@@ -1152,7 +1169,7 @@ async def export_playlists_config():
         with db.get_connection() as conn:
             with db.get_cursor(conn) as cur:
                 cur.execute("""
-                    SELECT id, name, base_folder, filter_language, filter_tags,
+                    SELECT id, name, base_folder, filter_language, exclude_language, filter_tags,
                            exclude_tags, sort_by, is_system_level, filter_favorites, created_at, updated_at
                     FROM SmartPlaylists
                     ORDER BY id
@@ -1170,7 +1187,8 @@ async def export_playlists_config():
             export_data["playlists"].append({
                 "name": playlist["name"],
                 "base_folder": playlist["base_folder"],
-                "filter_language": playlist["filter_language"],
+                "filter_language": playlist["filter_language"] if playlist["filter_language"] else [],
+                "exclude_language": playlist.get("exclude_language") if playlist.get("exclude_language") else [],
                 "filter_tags": playlist["filter_tags"] if playlist["filter_tags"] else [],
                 "exclude_tags": playlist["exclude_tags"] if playlist["exclude_tags"] else [],
                 "sort_by": playlist["sort_by"],
@@ -1317,6 +1335,7 @@ async def import_playlists_config(
                             UPDATE SmartPlaylists
                             SET base_folder = %s,
                                 filter_language = %s,
+                                exclude_language = %s,
                                 filter_tags = %s,
                                 exclude_tags = %s,
                                 sort_by = %s,
@@ -1326,7 +1345,8 @@ async def import_playlists_config(
                             WHERE name = %s
                         """, (
                             playlist_data.get("base_folder", ""),
-                            playlist_data.get("filter_language"),
+                            playlist_data.get("filter_language", []),
+                            playlist_data.get("exclude_language", []),
                             playlist_data.get("filter_tags", []),
                             playlist_data.get("exclude_tags", []),
                             playlist_data.get("sort_by", "file_creation_time"),
@@ -1340,12 +1360,13 @@ async def import_playlists_config(
                         # 插入新播放清單
                         cur.execute("""
                             INSERT INTO SmartPlaylists
-                            (name, base_folder, filter_language, filter_tags, exclude_tags, sort_by, is_system_level, filter_favorites)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            (name, base_folder, filter_language, exclude_language, filter_tags, exclude_tags, sort_by, is_system_level, filter_favorites)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """, (
                             playlist_name,
                             playlist_data.get("base_folder", ""),
-                            playlist_data.get("filter_language"),
+                            playlist_data.get("filter_language", []),
+                            playlist_data.get("exclude_language", []),
                             playlist_data.get("filter_tags", []),
                             playlist_data.get("exclude_tags", []),
                             playlist_data.get("sort_by", "file_creation_time"),

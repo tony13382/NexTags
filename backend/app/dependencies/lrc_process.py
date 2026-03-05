@@ -12,7 +12,7 @@ client = Anthropic(
 def call_anthropic_api(prompts):
     """呼叫 Anthropic API"""
     message = client.messages.create(
-        model="claude-3-7-sonnet-20250219",
+        model="claude-sonnet-4-6",
         max_tokens=4096,
         temperature=0,
         messages=prompts,

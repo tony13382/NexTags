@@ -14,13 +14,15 @@ interface SmartPlaylist {
     base_folder: string;
     filter_tags: string[];
     exclude_tags: string[];
-    filter_language: string | null;
+    filter_language: string[];
+    exclude_language: string[];
     filter_favorites: boolean | null;
     sort_method: string;
     is_system_level: boolean;
     filter_tags_display: string[];
     exclude_tags_display: string[];
-    filter_language_display: string;
+    filter_language_display: string[];
+    exclude_language_display: string[];
     filter_favorites_display: string;
     sort_method_display: string;
 }
@@ -57,7 +59,8 @@ export default function PlaylistEditDialog({
                     base_folder: playlist.base_folder,
                     filter_tags: [...(playlist.filter_tags || [])],
                     exclude_tags: [...(playlist.exclude_tags || [])],
-                    filter_language: playlist.filter_language,
+                    filter_language: [...(playlist.filter_language || [])],
+                    exclude_language: [...(playlist.exclude_language || [])],
                     filter_favorites: playlist.filter_favorites,
                     sort_method: playlist.sort_method || 'creation_time',
                     is_system_level: playlist.is_system_level ?? false
@@ -69,7 +72,8 @@ export default function PlaylistEditDialog({
                     base_folder: '',
                     filter_tags: [],
                     exclude_tags: [],
-                    filter_language: null,
+                    filter_language: [],
+                    exclude_language: [],
                     filter_favorites: null,
                     sort_method: 'creation_time',
                     is_system_level: false
@@ -129,6 +133,20 @@ export default function PlaylistEditDialog({
         }
 
         handleInputChange('filter_tags', newTags);
+    };
+
+    const handleLanguageToggle = (code: string) => {
+        const current = editedPlaylist.filter_language || [];
+        const isSelected = current.includes(code);
+        const updated = isSelected ? current.filter(c => c !== code) : [...current, code];
+        handleInputChange('filter_language', updated);
+    };
+
+    const handleExcludeLanguageToggle = (code: string) => {
+        const current = editedPlaylist.exclude_language || [];
+        const isSelected = current.includes(code);
+        const updated = isSelected ? current.filter(c => c !== code) : [...current, code];
+        handleInputChange('exclude_language', updated);
     };
 
     const handleExcludeTagToggle = (tag: string) => {
@@ -265,25 +283,60 @@ export default function PlaylistEditDialog({
                         )}
                     </div>
 
-                    {/* Language */}
+                    {/* Language (語言) */}
                     <div>
-                        <label className="text-sm font-medium text-gray-700 block mb-2">Language</label>
-                        <Select
-                            value={editedPlaylist.filter_language || 'NONE'}
-                            onValueChange={(value) => handleInputChange('filter_language', value === 'NONE' ? null : value)}
-                        >
-                            <SelectTrigger className="w-full">
-                                <SelectValue placeholder="不設定" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="NONE">不設定</SelectItem>
-                                {Object.entries(languages).map(([code, name]) => (
-                                    <SelectItem key={code} value={code}>
-                                        {name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <label className="text-sm font-medium text-gray-700 block mb-3">Language (語言)</label>
+                        <div className="flex flex-wrap gap-2">
+                            {Object.entries(languages)
+                                .filter(([code]) => !editedPlaylist.exclude_language?.includes(code))
+                                .map(([code, name]) => {
+                                    const isSelected = editedPlaylist.filter_language?.includes(code) || false;
+                                    return (
+                                        <button
+                                            key={code}
+                                            type="button"
+                                            onClick={() => handleLanguageToggle(code)}
+                                            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${isSelected
+                                                ? 'bg-green-700 text-white'
+                                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                }`}
+                                        >
+                                            {name}
+                                        </button>
+                                    );
+                                })}
+                        </div>
+                        {Object.keys(languages).filter(code => !editedPlaylist.exclude_language?.includes(code)).length === 0 && (
+                            <p className="text-sm text-gray-500 mt-2">所有語言都已在「Exclude Language」中被選擇</p>
+                        )}
+                    </div>
+
+                    {/* Exclude Language (排除語言) */}
+                    <div>
+                        <label className="text-sm font-medium text-gray-700 block mb-3">Exclude Language (排除語言)</label>
+                        <div className="flex flex-wrap gap-2">
+                            {Object.entries(languages)
+                                .filter(([code]) => !editedPlaylist.filter_language?.includes(code))
+                                .map(([code, name]) => {
+                                    const isSelected = editedPlaylist.exclude_language?.includes(code) || false;
+                                    return (
+                                        <button
+                                            key={code}
+                                            type="button"
+                                            onClick={() => handleExcludeLanguageToggle(code)}
+                                            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${isSelected
+                                                ? 'bg-red-600 text-white'
+                                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                }`}
+                                        >
+                                            {name}
+                                        </button>
+                                    );
+                                })}
+                        </div>
+                        {Object.keys(languages).filter(code => !editedPlaylist.filter_language?.includes(code)).length === 0 && (
+                            <p className="text-sm text-gray-500 mt-2">所有語言都已在「Language」中被選擇</p>
+                        )}
                     </div>
 
                     {/* Favorites */}
