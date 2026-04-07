@@ -1,235 +1,166 @@
-# 音樂管理系統 (Personal Music Manager)
+# Personal Music Manager
 
-一個基於 FastAPI + React 的音樂管理系統，支援音樂檔案標籤管理、播放清單管理等功能。
+Self-hosted music library management system with smart playlists, automated import workflows, and AI-powered lyrics processing.
 
-## 功能特色
+Built with FastAPI and React, deployed via Docker.
 
-- 🎵 音樂檔案標籤管理（支援 FLAC, MP3, WAV 等格式）
-- 📁 多資料夾管理
-- 🏷️ 自訂標籤和語言設定
-- 💾 Redis 快取支援
-- 🗄️ PostgreSQL 資料庫
-- 🐳 Docker 容器化部署
-- 🔥 開發環境支援熱重載 (HMR)
+## Features
 
-## 技術棧
+### Music Library Management
+- Browse and search your entire music library with multi-criteria filtering (title, folder, language, favorites)
+- Inline tag editor supporting 20+ metadata fields (ID3v2 / Vorbis / FLAC)
+- Cover art display and ReplayGain loudness normalization
+- Support for MP3, FLAC, M4A, OGG, WAV, AAC, WMA formats
 
-### 後端
-- **FastAPI**: Python Web 框架
-- **PostgreSQL**: 關聯式資料庫
-- **Redis**: 快取層
-- **Mutagen**: 音樂標籤讀取
+### Smart Playlists
+- Create playlists with flexible include/exclude tag filters, language filters, and favorites toggle
+- Multiple sort methods: title, creation time, album, artist
+- Export playlists as M3U files (single or batch)
+- Import/export playlist configurations as JSON for backup and sharing
 
-### 前端
-- **React 18**: UI 框架
-- **Vite**: 構建工具
-- **React Router**: 路由管理
-- **TailwindCSS**: 樣式框架
+### Music Import Workflow
+A guided multi-step process to add new music to your library:
 
-## 快速開始
+1. Upload audio files to a staging area
+2. Auto-convert M4A to lossless FLAC (tags preserved)
+3. Extract and review metadata
+4. Edit tags before finalizing
+5. Detect missing artist folders and upload artist images
+6. Move files to the correct library path
+7. Generate ReplayGain tags automatically
 
-### 環境需求
+### AI Lyrics Processing
+Uses Claude API to clean up and enhance lyrics:
+- Standardize LRC time format
+- Convert Simplified Chinese to Traditional Chinese
+- Translate non-Chinese lyrics (English, Korean, etc.) with inline Chinese translations
 
+### Additional Features
+- **ReplayGain** - Single file or batch loudness normalization via r128gain
+- **Redis Caching** - Fast tag lookups with cache statistics and rebuild tools
+- **Drag-and-drop Settings** - Reorder music folders, tags, and languages
+- **Playlist Config Backup** - Export/import all playlist settings
+
+## Screenshots
+
+> TODO: Add screenshots
+
+## Quick Start
+
+### Prerequisites
 - Docker & Docker Compose
-- 音樂檔案目錄
+- A music files directory on the host machine
+- (Optional) Anthropic API key for lyrics processing
 
-### 1. 設定環境變數
-
-複製 `.env.example` 並修改為 `.env`：
+### 1. Clone and configure
 
 ```bash
+git clone https://github.com/your-username/Personal-MusicManager.git
+cd Personal-MusicManager
+cp .env.example .env
+```
+
+Edit `.env` with your settings:
+
+```env
 MUSIC_ROOT_PATH=/path/to/your/music
-REDIS_HOST=redis
-REDIS_PORT=6379
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-POSTGRES_DB=musicmanager
-POSTGRES_USER=musicuser
-POSTGRES_PASSWORD=musicpass
+ANTHROPIC_TOKEN=           # Optional, for AI lyrics processing
+POSTGRES_PASSWORD=your_password
 ```
 
-### 2. 選擇運行模式
-
-#### 開發環境（推薦用於開發）
+### 2. Start the application
 
 ```bash
-# 使用 Makefile（推薦）
-make dev
-
-# 或使用 Docker Compose
-docker-compose -f docker-compose.dev.yml up
-```
-
-**開發環境特色：**
-- ✅ 前端 HMR（熱模組替換）
-- ✅ 後端自動重載
-- ✅ 源代碼掛載
-- ✅ 詳細的除錯日誌
-
-訪問：
-- 前端：http://localhost:4000
-- 後端：http://localhost:6000
-
-#### 生產環境
-
-```bash
-# 使用 Makefile（推薦）
+# Production
 make prod
 
-# 或使用 Docker Compose
-docker-compose up
+# Or development (with hot reload)
+make dev
 ```
 
-**生產環境特色：**
-- ✅ Nginx 靜態檔案服務
-- ✅ 優化的建置產物
-- ✅ 生產級別配置
+### 3. Initial setup
 
-訪問：http://localhost:4000
+1. Open http://localhost:4000/settings
+2. Add your music folders (e.g. Chinese, Japanese, English)
+3. Configure supported tags and languages
+4. Go to the cache page and rebuild the cache
 
-### 3. 初始設定
+The app is now ready at **http://localhost:4000**.
 
-1. 訪問系統設定頁面：http://localhost:4000/settings
-2. 設定允許的音樂資料夾（例如：「華語」、「日語」、「英語」）
-3. 設定支援的標籤和語言
-4. 前往快取管理頁面重建快取
+## Usage
 
-## Makefile 命令
+### Browsing Music
+Open the home page to browse your library. Use the filters at the top to search by title, folder, language, or favorites. Click any track to edit its tags inline.
 
-專案提供了便捷的 Makefile 命令：
+### Creating Smart Playlists
+Go to the Playlists page and create a new playlist. Set your filter criteria (tags, language, favorites), choose a sort order, and save. You can generate M3U files for use in any music player.
+
+### Importing New Music
+Go to the New page and upload an audio file. Follow the guided steps: review extracted tags, edit if needed, upload an artist image if it's a new artist, and confirm the final file location. ReplayGain tags are generated automatically.
+
+### Processing Lyrics
+In the tag editor, use the lyrics tool to clean up and format LRC lyrics. Requires an Anthropic API key in your `.env` file.
+
+## Makefile Commands
 
 ```bash
-make help         # 顯示所有可用命令
-make dev          # 啟動開發環境
-make dev-d        # 背景啟動開發環境
-make prod         # 啟動生產環境
-make prod-d       # 背景啟動生產環境
-make stop         # 停止所有服務
-make logs         # 顯示開發環境日誌
-make rebuild      # 重建並啟動開發環境
-make restart      # 重啟開發環境
-make ps           # 查看容器狀態
+make dev          # Start development environment
+make prod         # Start production environment
+make stop         # Stop all services
+make logs         # View logs
+make rebuild      # Rebuild and start dev environment
+make ps           # View container status
+make help         # Show all available commands
 ```
 
-## 專案結構
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | FastAPI, PostgreSQL, Redis |
+| Frontend | React, Vite, TailwindCSS, shadcn/ui |
+| Audio | Mutagen, FFmpeg, r128gain |
+| AI | Anthropic Claude API |
+| Infrastructure | Docker, Nginx |
+
+## Project Structure
 
 ```
 .
-├── backend/              # 後端服務
+├── backend/                # FastAPI backend
 │   ├── app/
-│   │   ├── router/       # API 路由
-│   │   ├── dependencies/ # 依賴注入
-│   │   └── data/         # 資料檔案
-│   ├── Dockerfile.dev    # 開發環境 Dockerfile
-│   └── Dockerfile.prod   # 生產環境 Dockerfile
-├── frontend/             # 前端服務
+│   │   ├── router/         # API endpoints
+│   │   ├── dependencies/   # Business logic
+│   │   ├── schemas/        # Pydantic models
+│   │   └── services/       # Background tasks
+│   └── config.py
+├── frontend/               # React frontend
 │   ├── src/
-│   │   ├── pages/        # 頁面元件
-│   │   ├── components/   # UI 元件
-│   │   └── lib/          # 工具函式
-│   ├── Dockerfile.dev    # 開發環境 Dockerfile
-│   └── Dockerfile.nginx  # 生產環境 Dockerfile (Nginx)
-├── docker-compose.yml        # 生產環境 Compose
-├── docker-compose.dev.yml    # 開發環境 Compose
-├── Makefile                  # 便捷命令
-├── README.md                 # 本文件
-├── README.dev.md             # 開發環境詳細說明
-└── README.prod.md            # 生產環境詳細說明
+│   │   ├── pages/          # Page components
+│   │   ├── components/     # UI components
+│   │   └── lib/            # Utilities
+├── nginx/                  # Nginx config (production)
+├── docker-compose.yml      # Production compose
+├── docker-compose.dev.yml  # Development compose
+└── Makefile
 ```
 
-## 開發指南
+## Development
 
-### 前端開發
+See [Development Guide](README.dev.md) for detailed setup, hot reload configuration, and debugging tips.
 
-1. 修改 `frontend/src/` 下的檔案
-2. Vite 會自動偵測變更並熱重載
-3. 瀏覽器自動刷新
+See [Production Deployment](README.prod.md) for production-specific instructions.
 
-### 後端開發
+## API Documentation
 
-1. 修改 `backend/app/` 下的 Python 檔案
-2. Uvicorn 會自動偵測變更並重啟
-3. API 變更立即生效
-
-### 查看日誌
-
-```bash
-# 所有服務
-make logs
-
-# 特定服務
-docker-compose -f docker-compose.dev.yml logs -f backend
-docker-compose -f docker-compose.dev.yml logs -f frontend
-```
-
-## 常見問題
-
-### Q: 修改後沒有自動更新？
-
-**前端：** 檢查瀏覽器控制台是否有 HMR 連接錯誤
-```bash
-docker-compose -f docker-compose.dev.yml logs frontend
-```
-
-**後端：** 檢查是否有語法錯誤
-```bash
-docker-compose -f docker-compose.dev.yml logs backend
-```
-
-### Q: 快取管理頁面空白？
-
-這是因為尚未設定音樂資料夾。請：
-1. 前往系統設定頁面
-2. 新增允許的音樂資料夾
-3. 回到快取管理頁面重建快取
-
-### Q: 資料庫資料會保留嗎？
-
-是的，使用 Docker volumes 儲存：
-```bash
-# 停止但保留資料
-make stop
-
-# 停止並刪除資料（危險！）
-make clean
-```
-
-### Q: 如何切換環境？
-
-```bash
-# 從生產切換到開發
-make stop
-make dev
-
-# 從開發切換到生產
-make stop
-make prod
-```
-
-### Q: 權限問題？
-
-檢查 `.env` 中的 `USER_ID` 和 `GROUP_ID` 是否與您的系統用戶一致：
-```bash
-id -u  # 查看 USER_ID
-id -g  # 查看 GROUP_ID
-```
-
-## 詳細文件
-
-- [開發環境詳細說明](README.dev.md)
-- [生產環境詳細說明](README.prod.md)
-- [權限修復指南](PERMISSION_FIX.md)
-
-## API 文件
-
-啟動服務後訪問：
+With the backend running, visit:
 - Swagger UI: http://localhost:6000/docs
 - ReDoc: http://localhost:6000/redoc
 
-## 授權
+## License
 
-本專案為個人使用專案。
+MIT License. See [LICENSE](LICENSE) for details.
 
-## 貢獻
+## Contributing
 
-歡迎提交 Issue 和 Pull Request！
+Issues and pull requests are welcome!
