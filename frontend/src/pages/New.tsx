@@ -59,6 +59,8 @@ export default function NewMusicPage() {
     const [showTagEditor, setShowTagEditor] = useState(false)
     const [showArtistImageDialog, setShowArtistImageDialog] = useState(false)
     const [artistName, setArtistName] = useState('')
+    const [artistsNeedingImage, setArtistsNeedingImage] = useState<ArtistCheckResult[]>([])
+    const [currentArtistIndex, setCurrentArtistIndex] = useState(0)
     const [albumName, setAlbumName] = useState('')
     const [finalFilename, setFinalFilename] = useState('')
     const [error, setError] = useState<string | null>(null)
@@ -240,13 +242,13 @@ export default function NewMusicPage() {
             // 更新當前會話狀態
             await refreshSessionStatus(fileId)
 
-            // 檢查是否有任何歌手需要上傳圖片
-            const needsAnyArtistImage = data.artists?.some((artist: ArtistCheckResult) => artist.needs_artist_image) || false
+            // 找出需要上傳圖片的歌手
+            const artistsNeeding = data.artists?.filter((artist: ArtistCheckResult) => artist.needs_artist_image) || []
 
-            if (needsAnyArtistImage) {
+            if (artistsNeeding.length > 0) {
+                setArtistsNeedingImage(artistsNeeding)
+                setCurrentArtistIndex(0)
                 setShowArtistImageDialog(true)
-                // 可以在這裡處理顯示哪些歌手需要圖片的資訊
-                console.log('需要上傳圖片的歌手:', data.artists?.filter((artist: ArtistCheckResult) => artist.needs_artist_image))
             } else {
                 // 所有歌手都不需要圖片，直接處理專輯
                 await processAlbum(fileId, artistName, albumName)
@@ -258,22 +260,37 @@ export default function NewMusicPage() {
         }
     }
 
+    // 前進到下一個需要圖片的歌手，或完成
+    const advanceToNextArtist = async () => {
+        const nextIndex = currentArtistIndex + 1
+        if (nextIndex < artistsNeedingImage.length) {
+            setCurrentArtistIndex(nextIndex)
+        } else {
+            // 所有歌手圖片都處理完了
+            setShowArtistImageDialog(false)
+            setArtistsNeedingImage([])
+            setCurrentArtistIndex(0)
+            if (currentSession) {
+                await processAlbum(currentSession.file_id, artistName, albumName)
+            }
+        }
+    }
+
     // 上傳歌手圖片
     const uploadArtistImage = async (file: File) => {
-        if (!file || !currentSession || !artistName) return
+        if (!file || !currentSession || artistsNeedingImage.length === 0) return
+
+        const currentArtist = artistsNeedingImage[currentArtistIndex]
 
         try {
             const formData = new FormData()
             formData.append('file_id', currentSession.file_id)
-            formData.append('artist_name', artistName)
+            formData.append('artist_name', currentArtist.artist_name)
             formData.append('image', file)
 
-            const data = await api.postFormData('music-import/upload-artist-image', formData)
+            await api.postFormData('music-import/upload-artist-image', formData)
 
-            setShowArtistImageDialog(false)
-
-            // 繼續處理專輯 - 使用當前狀態的值
-            await processAlbum(currentSession.file_id, artistName, albumName)
+            await advanceToNextArtist()
 
         } catch (error) {
             console.error('歌手圖片上傳失敗:', error)
@@ -642,9 +659,9 @@ export default function NewMusicPage() {
             <Dialog open={showArtistImageDialog} onOpenChange={setShowArtistImageDialog}>
                 <DialogContent>
                     <DialogHeader className="grid">
-                        <DialogTitle>上傳歌手圖片</DialogTitle>
+                        <DialogTitle>上傳歌手圖片{artistsNeedingImage.length > 1 ? ` (${currentArtistIndex + 1}/${artistsNeedingImage.length})` : ''}</DialogTitle>
                         <DialogDescription>
-                            歌手 &quot;{artistName}&quot; 的資料夾需要封面圖片，請上傳歌手圖片 (JPG/PNG 格式)，檔案將保存為 artist.jpg
+                            歌手 &quot;{artistsNeedingImage[currentArtistIndex]?.artist_name}&quot; 的資料夾需要封面圖片，請上傳歌手圖片 (JPG/PNG 格式)，檔案將保存為 artist.jpg
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
@@ -688,16 +705,10 @@ export default function NewMusicPage() {
                         </div>
                         <div className="flex space-x-4 justify-end">
                             <Button
-                                onClick={() => {
-                                    setShowArtistImageDialog(false)
-                                    // 跳過歌手圖片，直接處理專輯 - 使用當前狀態的值
-                                    if (currentSession) {
-                                        processAlbum(currentSession.file_id, artistName, albumName)
-                                    }
-                                }}
+                                onClick={() => advanceToNextArtist()}
                                 variant="outline"
                             >
-                                跳過
+                                {currentArtistIndex < artistsNeedingImage.length - 1 ? '跳過此歌手' : '跳過'}
                             </Button>
                         </div>
                     </div>

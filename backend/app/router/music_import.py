@@ -749,9 +749,12 @@ async def finalize_file_preparation(request: FinalizeFileRequest):
             raise HTTPException(status_code=404, detail="暫存檔案不存在")
         
         # 建構預覽的最終路徑 (/Music/basefolder/Music/Artist/Album/filename)
+        # 多歌手時使用第一個歌手作為主要路徑
+        artist_names = [name.strip() for name in artist_name.split(';') if name.strip()]
+        primary_artist = artist_names[0] if artist_names else artist_name
         music_base_path = get_music_base_path()
         preview_final_path = os.path.join(
-            music_base_path, base_folder, "Music", artist_name, album_name, request.final_filename
+            music_base_path, base_folder, "Music", primary_artist, album_name, request.final_filename
         )
         
         # 更新匯入狀態
