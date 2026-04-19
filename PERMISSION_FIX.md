@@ -25,7 +25,7 @@ GROUP_ID=197609
 ### 方法 1: 重新構建容器（推薦）
 
 ```bash
-cd C:\Users\tony1\Music\Server\Personal-MusicManager
+cd C:\Users\tony1\Music\Server\NexTags
 docker-compose down
 docker-compose build --no-cache backend
 docker-compose up -d
@@ -35,10 +35,10 @@ docker-compose up -d
 
 ```bash
 # 給所有用戶添加寫入權限（快速）
-docker exec -u root personal-musicmanager-backend-1 chmod -R a+w /Music
+docker exec -u root nextags-backend-1 chmod -R a+w /Music
 
 # 或者改變擁有者為 appuser（較慢但更安全）
-docker exec -u root personal-musicmanager-backend-1 chown -R appuser:appuser /Music
+docker exec -u root nextags-backend-1 chown -R appuser:appuser /Music
 ```
 
 ### 方法 3: 修復主機端的權限（Windows）
@@ -53,13 +53,13 @@ docker exec -u root personal-musicmanager-backend-1 chown -R appuser:appuser /Mu
 
 ```bash
 # 檢查容器內用戶
-docker exec personal-musicmanager-backend-1 id
+docker exec nextags-backend-1 id
 
 # 檢查音樂目錄權限
-docker exec personal-musicmanager-backend-1 ls -la /Music | head -10
+docker exec nextags-backend-1 ls -la /Music | head -10
 
 # 查看容器日誌中的權限檢查結果
-docker logs personal-musicmanager-backend-1 | grep -i "permission\|權限"
+docker logs nextags-backend-1 | grep -i "permission\|權限"
 ```
 
 ## 新增音樂檔案時的注意事項
@@ -87,7 +87,7 @@ docker logs personal-musicmanager-backend-1 | grep -i "permission\|權限"
 
 2. 查看日誌確認權限檢查通過：
    ```bash
-   docker logs personal-musicmanager-backend-1 --tail 20
+   docker logs nextags-backend-1 --tail 20
    ```
 
 3. 嘗試編輯一個音樂檔案的標籤，應該會成功。

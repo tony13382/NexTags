@@ -1,4 +1,4 @@
-# Personal Music Manager
+# NexTags
 
 Self-hosted music library management system with smart playlists, automated import workflows, and AI-powered lyrics processing.
 
@@ -55,8 +55,8 @@ Uses Claude API to clean up and enhance lyrics:
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/your-username/Personal-MusicManager.git
-cd Personal-MusicManager
+git clone https://github.com/tony13382/NexTags.git
+cd NexTags
 cp .env.example .env
 ```
 

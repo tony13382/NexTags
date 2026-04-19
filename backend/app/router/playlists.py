@@ -855,7 +855,7 @@ async def generate_playlist_m3u_to_file(
             logger.error(f"權限不足，無法寫入 {m3u_file_path}")
             raise HTTPException(
                 status_code=500,
-                detail=f"無法寫入檔案 {m3u_file_path}，請檢查檔案權限。可能需要執行: docker exec -u root personal-musicmanager-backend-1 chown -R appuser:appuser '/Music/{base_folder}/Playlist/'"
+                detail=f"無法寫入檔案 {m3u_file_path}，請檢查檔案權限。可能需要執行: docker exec -u root nextags-backend-1 chown -R appuser:appuser '/Music/{base_folder}/Playlist/'"
             )
 
         logger.info(f"成功生成 M3U 檔案到: {m3u_file_path}")

@@ -12,8 +12,8 @@ from app.router.config import router as config_router
 from app.dependencies.logger import logger
 
 app = FastAPI(
-    title="Personal Music Manager API",
-    description="Backend API for Personal Music Manager",
+    title="NexTags API",
+    description="Backend API for NexTags",
     version="0.1.0",
     # 禁用自动重定向尾部斜杠，避免与 nginx 代理冲突
     redirect_slashes=False
@@ -40,7 +40,7 @@ app.include_router(config_router, prefix="/api")
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("=== Personal Music Manager API 啟動 ===")
+    logger.info("=== NexTags API 啟動 ===")
     logger.info("API 版本: 0.1.0")
     
     # 啟動背景任務工作器
@@ -53,7 +53,7 @@ async def startup_event():
 
 @app.on_event("shutdown")  
 async def shutdown_event():
-    logger.info("Personal Music Manager API 正在關閉...")
+    logger.info("NexTags API 正在關閉...")
     
     # 停止背景任務工作器
     from app.services.task_manager import task_manager
@@ -62,7 +62,7 @@ async def shutdown_event():
 
 @app.get("/")
 async def root():
-    return {"message": "Personal Music Manager API"}
+    return {"message": "NexTags API"}
 
 @app.get("/health")
 async def health_check():

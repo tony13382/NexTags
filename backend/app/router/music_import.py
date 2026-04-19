@@ -796,7 +796,17 @@ async def confirm_file_move(request: ConfirmMoveRequest):
         
         if not os.path.exists(temp_path):
             raise HTTPException(status_code=404, detail="暫存檔案不存在")
-        
+
+        # 如果尚未生成 ReplayGain，自動生成
+        if not session.get('replaygain_applied'):
+            logger.info(f"自動生成 ReplayGain: {temp_path}")
+            rg_success, rg_message = generate_replaygain(temp_path)
+            if rg_success:
+                session['replaygain_applied'] = True
+                logger.info(f"ReplayGain 自動生成成功: {rg_message}")
+            else:
+                logger.warning(f"ReplayGain 自動生成失敗，繼續移動檔案: {rg_message}")
+
         # 確保目標目錄存在
         os.makedirs(os.path.dirname(preview_final_path), exist_ok=True)
         
