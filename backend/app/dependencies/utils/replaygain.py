@@ -1,56 +1,73 @@
 import os
+import re
 import subprocess
 from typing import Tuple
 from ..logger import logger
 
 
-def get_r128gain_path() -> str:
-    """取得 r128gain 執行檔路徑"""
-    # 嘗試多個可能的路徑
-    possible_paths = [
-        '/app/.venv/bin/r128gain',  # uv venv 路徑（優先）
-        'r128gain',  # 系統 PATH
-        '/home/appuser/.local/bin/r128gain',  # Docker 容器中的用戶安裝路徑
-        '/usr/local/bin/r128gain',  # 全局安裝路徑
-    ]
-
-    for path in possible_paths:
+def _get_ffmpeg_path() -> str:
+    """取得 ffmpeg 執行檔路徑"""
+    for path in ['/usr/bin/ffmpeg', 'ffmpeg']:
         try:
-            logger.debug(f"嘗試 r128gain 路徑: {path}")
-            # r128gain 不支援 --version，使用 -h 檢查（會返回 0）
             result = subprocess.run(
-                [path, '-h'],
-                capture_output=True,
-                text=True,
-                timeout=5
+                [path, '-version'],
+                capture_output=True, text=True, timeout=5
             )
-            # -h 會返回 0 並輸出幫助訊息
-            if result.returncode == 0 and 'r128gain' in result.stdout.lower():
-                logger.info(f"找到 r128gain: {path}")
+            if result.returncode == 0:
                 return path
-            else:
-                logger.debug(f"路徑 {path} returncode: {result.returncode}, stdout: {result.stdout[:100]}")
-        except FileNotFoundError as e:
-            logger.debug(f"路徑 {path} 找不到: {e}")
+        except (FileNotFoundError, subprocess.TimeoutExpired):
             continue
-        except subprocess.TimeoutExpired:
-            logger.debug(f"路徑 {path} 超時")
-            continue
-        except Exception as e:
-            logger.error(f"路徑 {path} 錯誤: {e}")
-            continue
-
-    logger.error("找不到任何可用的 r128gain 路徑")
     return ''
 
-def check_r128gain_installed() -> bool:
-    """檢查 r128gain 是否已安裝"""
-    return bool(get_r128gain_path())
+
+def _parse_replaygain_output(stderr: str) -> Tuple[str, str]:
+    """從 ffmpeg stderr 中解析 ReplayGain 值"""
+    gain_match = re.search(r'track_gain\s*=\s*([-\d.]+)\s*dB', stderr)
+    peak_match = re.search(r'track_peak\s*=\s*([\d.]+)', stderr)
+
+    track_gain = f"{gain_match.group(1)} dB" if gain_match else ''
+    track_peak = peak_match.group(1) if peak_match else ''
+
+    return track_gain, track_peak
+
+
+def _write_replaygain_tags(file_path: str, track_gain: str, track_peak: str) -> Tuple[bool, str]:
+    """使用 mutagen 將 ReplayGain 標籤寫入檔案"""
+    try:
+        from mutagen import File as MutagenFile
+        from mutagen.flac import FLAC
+        from mutagen.mp3 import MP3
+        from mutagen.mp4 import MP4
+        from mutagen.id3 import TXXX
+
+        audio = MutagenFile(file_path)
+        if audio is None:
+            return False, "無法識別音訊格式"
+
+        if isinstance(audio, FLAC):
+            audio['REPLAYGAIN_TRACK_GAIN'] = track_gain
+            audio['REPLAYGAIN_TRACK_PEAK'] = track_peak
+        elif isinstance(audio, MP3):
+            if audio.tags is None:
+                audio.add_tags()
+            audio.tags.add(TXXX(encoding=3, desc='REPLAYGAIN_TRACK_GAIN', text=[track_gain]))
+            audio.tags.add(TXXX(encoding=3, desc='REPLAYGAIN_TRACK_PEAK', text=[track_peak]))
+        elif isinstance(audio, MP4):
+            audio['----:com.apple.iTunes:replaygain_track_gain'] = track_gain.encode('utf-8')
+            audio['----:com.apple.iTunes:replaygain_track_peak'] = track_peak.encode('utf-8')
+        else:
+            return False, f"不支援的音訊格式: {type(audio).__name__}"
+
+        audio.save()
+        return True, "標籤寫入成功"
+
+    except Exception as e:
+        return False, f"寫入標籤失敗: {str(e)}"
 
 
 def generate_replaygain(file_path: str) -> Tuple[bool, str]:
     """
-    使用 r128gain 為音訊檔案生成 ReplayGain 標籤
+    使用 ffmpeg replaygain filter 計算並寫入 ReplayGain 標籤
 
     Args:
         file_path: 音訊檔案路徑
@@ -59,88 +76,58 @@ def generate_replaygain(file_path: str) -> Tuple[bool, str]:
         Tuple[bool, str]: (成功與否, 訊息)
     """
     try:
-        # 檢查檔案是否存在
         if not os.path.exists(file_path):
             return False, f"檔案不存在: {file_path}"
 
-        # 取得 r128gain 路徑
-        r128gain_cmd = get_r128gain_path()
-        if not r128gain_cmd:
-            return False, "r128gain 未安裝，請先安裝 r128gain"
+        ffmpeg_cmd = _get_ffmpeg_path()
+        if not ffmpeg_cmd:
+            return False, "ffmpeg 未安裝"
 
         logger.info(f"開始為檔案生成 ReplayGain: {file_path}")
 
-        # 執行 r128gain
-        # 只計算 track gain 和 track peak，不使用 -a (album mode)
+        # 使用簡單的 replaygain filter，避免 ffmpeg 7.x 的 asplit+ebur128 assert bug
         result = subprocess.run(
-            [r128gain_cmd, file_path],
+            [ffmpeg_cmd, '-i', file_path, '-af', 'replaygain', '-f', 'null', '/dev/null',
+             '-hide_banner', '-nostats'],
             capture_output=True,
             text=True,
-            timeout=60  # 60秒超時
+            timeout=120
         )
 
-        if result.returncode == 0:
-            logger.info(f"ReplayGain 生成成功: {file_path}")
-            return True, "ReplayGain 標籤已成功添加"
-        else:
-            error_msg = result.stderr or result.stdout or "未知錯誤"
-            logger.error(f"ReplayGain 生成失敗: {error_msg}")
-            return False, f"ReplayGain 生成失敗: {error_msg}"
+        stderr = result.stderr or ''
+
+        # ffmpeg 即使計算成功也可能因 assert 失敗而非零退出，所以優先看輸出
+        track_gain, track_peak = _parse_replaygain_output(stderr)
+
+        if not track_gain or not track_peak:
+            logger.error(f"ReplayGain 無法從 ffmpeg 輸出解析結果: {stderr}")
+            return False, "無法計算 ReplayGain 值"
+
+        logger.info(f"ReplayGain 計算結果: gain={track_gain}, peak={track_peak}")
+
+        # 寫入標籤
+        success, message = _write_replaygain_tags(file_path, track_gain, track_peak)
+        if not success:
+            logger.error(f"ReplayGain 標籤寫入失敗: {message}")
+            return False, message
+
+        # 清除快取
+        try:
+            from ..redis_cache import redis_cache
+            if redis_cache:
+                redis_cache.invalidate_cache(file_path)
+                logger.info(f"已從快取中移除: {file_path}")
+        except Exception:
+            pass
+
+        logger.info(f"ReplayGain 生成成功: {file_path}")
+        return True, f"ReplayGain: {track_gain}, Peak: {track_peak}"
 
     except subprocess.TimeoutExpired:
         logger.error(f"ReplayGain 生成超時: {file_path}")
-        return False, "ReplayGain 生成超時 (超過60秒)"
+        return False, "ReplayGain 生成超時 (超過120秒)"
     except Exception as e:
         logger.error(f"ReplayGain 生成異常: {str(e)}")
         return False, f"ReplayGain 生成異常: {str(e)}"
 
 
-def generate_replaygain_for_album(album_path: str) -> Tuple[bool, str]:
-    """
-    為整個專輯資料夾生成 ReplayGain 標籤
-
-    Args:
-        album_path: 專輯資料夾路徑
-
-    Returns:
-        Tuple[bool, str]: (成功與否, 訊息)
-    """
-    try:
-        # 檢查資料夾是否存在
-        if not os.path.exists(album_path):
-            return False, f"資料夾不存在: {album_path}"
-
-        if not os.path.isdir(album_path):
-            return False, f"路徑不是資料夾: {album_path}"
-
-        # 取得 r128gain 路徑
-        r128gain_cmd = get_r128gain_path()
-        if not r128gain_cmd:
-            return False, "r128gain 未安裝，請先安裝 r128gain"
-
-        logger.info(f"開始為專輯資料夾生成 ReplayGain: {album_path}")
-
-        # 執行 r128gain
-        # -a: album mode
-        # -r: 遞迴處理
-        result = subprocess.run(
-            [r128gain_cmd, '-a', '-r', album_path],
-            capture_output=True,
-            text=True,
-            timeout=300  # 5分鐘超時（整個專輯可能較大）
-        )
-
-        if result.returncode == 0:
-            logger.info(f"專輯 ReplayGain 生成成功: {album_path}")
-            return True, "專輯 ReplayGain 標籤已成功添加"
-        else:
-            error_msg = result.stderr or result.stdout or "未知錯誤"
-            logger.error(f"專輯 ReplayGain 生成失敗: {error_msg}")
-            return False, f"專輯 ReplayGain 生成失敗: {error_msg}"
-
-    except subprocess.TimeoutExpired:
-        logger.error(f"專輯 ReplayGain 生成超時: {album_path}")
-        return False, "專輯 ReplayGain 生成超時 (超過5分鐘)"
-    except Exception as e:
-        logger.error(f"專輯 ReplayGain 生成異常: {str(e)}")
-        return False, f"專輯 ReplayGain 生成異常: {str(e)}"
