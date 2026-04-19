@@ -241,9 +241,8 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        alert('ReplayGain 生成成功！請重新開啟編輯視窗查看結果。');
         // 重新讀取檔案標籤以獲取新的 ReplayGain 值
-        const tagsResponse = await fetch('/api/audios', {
+        const tagsResponse = await fetch('/api/audios/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path: editedSong.FilePath })
@@ -256,6 +255,7 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
             handleInputChange('ReplayGainTrackPeak', tagsData.tags.replaygain_track_peak || '');
           }
         }
+        alert('ReplayGain 生成成功！');
       } else {
         alert(`ReplayGain 生成失敗: ${data.message || '未知錯誤'}`);
       }
