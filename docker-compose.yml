@@ -17,11 +17,6 @@ services:
       - PYTHONPATH=/app
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
-      - POSTGRES_HOST=${POSTGRES_HOST}
-      - POSTGRES_PORT=${POSTGRES_PORT}
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     restart: unless-stopped
     networks:
       - app-network
@@ -47,18 +42,6 @@ services:
     networks:
       - app-network
 
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    restart: unless-stopped
-    networks:
-      - app-network
-
 networks:
   app-network:
     driver: bridge
@@ -66,4 +49,3 @@ networks:
 volumes:
   app-data:
   redis-data:
-  postgres-data:

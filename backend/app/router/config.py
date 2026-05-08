@@ -20,15 +20,15 @@ def get_config(config_key: str) -> Any:
         raise HTTPException(status_code=500, detail="資料庫未初始化")
 
     with db.get_connection() as conn:
-        with db.get_cursor(conn) as cur:
-            cur.execute(
-                "SELECT config_value FROM Config WHERE config_key = %s",
-                (config_key,)
-            )
-            result = cur.fetchone()
-            if result:
-                return result['config_value']
-            return None
+        cur = db.get_cursor(conn)
+        cur.execute(
+            "SELECT config_value FROM Config WHERE config_key = ?",
+            (config_key,)
+        )
+        result = cur.fetchone()
+        if result:
+            return json.loads(result['config_value'])
+        return None
 
 
 def set_config(config_key: str, config_value: Any, description: str = None):
@@ -37,18 +37,18 @@ def set_config(config_key: str, config_value: Any, description: str = None):
         raise HTTPException(status_code=500, detail="資料庫未初始化")
 
     with db.get_connection() as conn:
-        with db.get_cursor(conn) as cur:
-            # 使用 UPSERT (INSERT ... ON CONFLICT)
-            cur.execute("""
-                INSERT INTO Config (config_key, config_value, description, updated_at)
-                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
-                ON CONFLICT (config_key)
-                DO UPDATE SET
-                    config_value = EXCLUDED.config_value,
-                    description = EXCLUDED.description,
-                    updated_at = CURRENT_TIMESTAMP
-            """, (config_key, json.dumps(config_value), description))
-            conn.commit()
+        cur = db.get_cursor(conn)
+        # 使用 UPSERT (INSERT ... ON CONFLICT)
+        cur.execute("""
+            INSERT INTO Config (config_key, config_value, description, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT (config_key)
+            DO UPDATE SET
+                config_value = EXCLUDED.config_value,
+                description = EXCLUDED.description,
+                updated_at = CURRENT_TIMESTAMP
+        """, (config_key, json.dumps(config_value), description))
+        conn.commit()
 
 
 @router.get("")
@@ -60,13 +60,13 @@ async def get_all_configs():
             raise HTTPException(status_code=500, detail="資料庫未初始化")
 
         with db.get_connection() as conn:
-            with db.get_cursor(conn) as cur:
-                cur.execute("SELECT config_key, config_value, description FROM Config ORDER BY config_key")
-                results = cur.fetchall()
+            cur = db.get_cursor(conn)
+            cur.execute("SELECT config_key, config_value, description FROM Config ORDER BY config_key")
+            results = cur.fetchall()
 
-                configs = {}
-                for row in results:
-                    configs[row['config_key']] = row['config_value']
+            configs = {}
+            for row in results:
+                configs[row['config_key']] = json.loads(row['config_value'])
 
                 return {
                     "success": True,
@@ -156,18 +156,18 @@ async def delete_config(config_key: str):
             raise HTTPException(status_code=500, detail="資料庫未初始化")
 
         with db.get_connection() as conn:
-            with db.get_cursor(conn) as cur:
-                cur.execute(
-                    "DELETE FROM Config WHERE config_key = %s RETURNING config_key",
-                    (config_key,)
+            cur = db.get_cursor(conn)
+            cur.execute(
+                "DELETE FROM Config WHERE config_key = ? RETURNING config_key",
+                (config_key,)
+            )
+            result = cur.fetchone()
+            if not result:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"設定 '{config_key}' 不存在"
                 )
-                result = cur.fetchone()
-                if not result:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"設定 '{config_key}' 不存在"
-                    )
-                conn.commit()
+            conn.commit()
 
         return {
             "success": True,

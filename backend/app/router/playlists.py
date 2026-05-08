@@ -17,7 +17,7 @@ from app.schemas.playlists import (
 from app.dependencies.logger import logger
 from app.dependencies.mp3tag_reader import read_audio_tags
 from app.dependencies.redis_cache import redis_cache
-from app.dependencies.database import db
+from app.dependencies.database import db, serialize_list, deserialize_list
 from app.router.config import get_config
 
 router = APIRouter(prefix="/playlists", tags=["playlists"])
@@ -60,38 +60,27 @@ def load_playlists() -> List[Dict[str, Any]]:
 
     try:
         with db.get_connection() as conn:
-            with db.get_cursor(conn) as cur:
-                cur.execute("""
-                    SELECT id, name, base_folder, filter_language, exclude_language, filter_tags, exclude_tags, sort_by,
-                           is_system_level, filter_favorites, created_at, updated_at
-                    FROM SmartPlaylists
-                    ORDER BY id
-                """)
-                rows = cur.fetchall()
+            cur = db.get_cursor(conn)
+            cur.execute("""
+                SELECT id, name, base_folder, filter_language, exclude_language, filter_tags, exclude_tags, sort_by,
+                       is_system_level, filter_favorites, created_at, updated_at
+                FROM SmartPlaylists
+                ORDER BY id
+            """)
+            rows = cur.fetchall()
 
-                playlists = []
-                for row in rows:
-                    playlist = dict(row)
-                    # 將資料庫的 sort_by 欄位轉換為 sort_method（API 使用的名稱）
-                    if 'sort_by' in playlist:
-                        playlist['sort_method'] = playlist.pop('sort_by')
-                    # 將時間戳轉換為字串
-                    if playlist.get('created_at'):
-                        playlist['created_at'] = playlist['created_at'].isoformat()
-                    if playlist.get('updated_at'):
-                        playlist['updated_at'] = playlist['updated_at'].isoformat()
-                    # 確保列表欄位不為 None，轉換為空列表
-                    if playlist.get('filter_tags') is None:
-                        playlist['filter_tags'] = []
-                    if playlist.get('exclude_tags') is None:
-                        playlist['exclude_tags'] = []
-                    if playlist.get('filter_language') is None:
-                        playlist['filter_language'] = []
-                    if playlist.get('exclude_language') is None:
-                        playlist['exclude_language'] = []
-                    playlists.append(playlist)
+            playlists = []
+            for row in rows:
+                playlist = dict(row)
+                # 將資料庫的 sort_by 欄位轉換為 sort_method（API 使用的名稱）
+                if 'sort_by' in playlist:
+                    playlist['sort_method'] = playlist.pop('sort_by')
+                # 反序列化 JSON 陣列欄位
+                for list_field in ('filter_tags', 'exclude_tags', 'filter_language', 'exclude_language'):
+                    playlist[list_field] = deserialize_list(playlist.get(list_field))
+                playlists.append(playlist)
 
-                return playlists
+            return playlists
     except Exception as e:
         logger.error(f"載入播放清單失敗: {str(e)}")
         return []
@@ -106,49 +95,49 @@ def save_playlist(playlist: Dict[str, Any]) -> int:
         sort_value = playlist.get('sort_method') or playlist.get('sort_by', 'creation_time')
 
         with db.get_connection() as conn:
-            with db.get_cursor(conn) as cur:
-                if 'id' in playlist and playlist['id']:
-                    # 更新現有播放清單
-                    cur.execute("""
-                        UPDATE SmartPlaylists
-                        SET name = %s, base_folder = %s, filter_language = %s, exclude_language = %s,
-                            filter_tags = %s, exclude_tags = %s, sort_by = %s, is_system_level = %s,
-                            filter_favorites = %s, updated_at = CURRENT_TIMESTAMP
-                        WHERE id = %s
-                        RETURNING id
-                    """, (
-                        playlist['name'],
-                        playlist['base_folder'],
-                        playlist.get('filter_language'),
-                        playlist.get('exclude_language'),
-                        playlist.get('filter_tags', []),
-                        playlist.get('exclude_tags', []),
-                        sort_value,
-                        playlist.get('is_system_level', False),
-                        playlist.get('filter_favorites'),
-                        playlist['id']
-                    ))
-                else:
-                    # 建立新播放清單
-                    cur.execute("""
-                        INSERT INTO SmartPlaylists (name, base_folder, filter_language, exclude_language, filter_tags, exclude_tags, sort_by, is_system_level, filter_favorites)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        RETURNING id
-                    """, (
-                        playlist['name'],
-                        playlist['base_folder'],
-                        playlist.get('filter_language'),
-                        playlist.get('exclude_language'),
-                        playlist.get('filter_tags', []),
-                        playlist.get('exclude_tags', []),
-                        sort_value,
-                        playlist.get('is_system_level', False),
-                        playlist.get('filter_favorites')
-                    ))
+            cur = db.get_cursor(conn)
+            if 'id' in playlist and playlist['id']:
+                # 更新現有播放清單
+                cur.execute("""
+                    UPDATE SmartPlaylists
+                    SET name = ?, base_folder = ?, filter_language = ?, exclude_language = ?,
+                        filter_tags = ?, exclude_tags = ?, sort_by = ?, is_system_level = ?,
+                        filter_favorites = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    RETURNING id
+                """, (
+                    playlist['name'],
+                    playlist['base_folder'],
+                    serialize_list(playlist.get('filter_language')),
+                    serialize_list(playlist.get('exclude_language')),
+                    serialize_list(playlist.get('filter_tags', [])),
+                    serialize_list(playlist.get('exclude_tags', [])),
+                    sort_value,
+                    1 if playlist.get('is_system_level', False) else 0,
+                    1 if playlist.get('filter_favorites') else (0 if playlist.get('filter_favorites') is False else None),
+                    playlist['id']
+                ))
+            else:
+                # 建立新播放清單
+                cur.execute("""
+                    INSERT INTO SmartPlaylists (name, base_folder, filter_language, exclude_language, filter_tags, exclude_tags, sort_by, is_system_level, filter_favorites)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    RETURNING id
+                """, (
+                    playlist['name'],
+                    playlist['base_folder'],
+                    serialize_list(playlist.get('filter_language')),
+                    serialize_list(playlist.get('exclude_language')),
+                    serialize_list(playlist.get('filter_tags', [])),
+                    serialize_list(playlist.get('exclude_tags', [])),
+                    sort_value,
+                    1 if playlist.get('is_system_level', False) else 0,
+                    1 if playlist.get('filter_favorites') else (0 if playlist.get('filter_favorites') is False else None),
+                ))
 
-                result = cur.fetchone()
-                conn.commit()
-                return result['id'] if result else None
+            result = cur.fetchone()
+            conn.commit()
+            return result['id'] if result else None
     except Exception as e:
         logger.error(f"儲存播放清單失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=f"無法儲存播放清單: {str(e)}")
@@ -160,10 +149,10 @@ def delete_playlist(playlist_id: int):
 
     try:
         with db.get_connection() as conn:
-            with db.get_cursor(conn) as cur:
-                cur.execute("DELETE FROM SmartPlaylists WHERE id = %s", (playlist_id,))
-                conn.commit()
-                logger.info(f"已刪除播放清單 ID: {playlist_id}")
+            cur = db.get_cursor(conn)
+            cur.execute("DELETE FROM SmartPlaylists WHERE id = ?", (playlist_id,))
+            conn.commit()
+            logger.info(f"已刪除播放清單 ID: {playlist_id}")
     except Exception as e:
         logger.error(f"刪除播放清單失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=f"無法刪除播放清單: {str(e)}")
@@ -1167,14 +1156,14 @@ async def export_playlists_config():
 
         # 從資料庫讀取所有播放清單
         with db.get_connection() as conn:
-            with db.get_cursor(conn) as cur:
-                cur.execute("""
-                    SELECT id, name, base_folder, filter_language, exclude_language, filter_tags,
-                           exclude_tags, sort_by, is_system_level, filter_favorites, created_at, updated_at
-                    FROM SmartPlaylists
-                    ORDER BY id
-                """)
-                playlists = cur.fetchall()
+            cur = db.get_cursor(conn)
+            cur.execute("""
+                SELECT id, name, base_folder, filter_language, exclude_language, filter_tags,
+                       exclude_tags, sort_by, is_system_level, filter_favorites, created_at, updated_at
+                FROM SmartPlaylists
+                ORDER BY id
+            """)
+            playlists = cur.fetchall()
 
         # 轉換為可匯出的格式
         export_data = {
@@ -1187,13 +1176,13 @@ async def export_playlists_config():
             export_data["playlists"].append({
                 "name": playlist["name"],
                 "base_folder": playlist["base_folder"],
-                "filter_language": playlist["filter_language"] if playlist["filter_language"] else [],
-                "exclude_language": playlist.get("exclude_language") if playlist.get("exclude_language") else [],
-                "filter_tags": playlist["filter_tags"] if playlist["filter_tags"] else [],
-                "exclude_tags": playlist["exclude_tags"] if playlist["exclude_tags"] else [],
+                "filter_language": deserialize_list(playlist["filter_language"]),
+                "exclude_language": deserialize_list(playlist["exclude_language"]),
+                "filter_tags": deserialize_list(playlist["filter_tags"]),
+                "exclude_tags": deserialize_list(playlist["exclude_tags"]),
                 "sort_by": playlist["sort_by"],
-                "is_system_level": playlist["is_system_level"],
-                "filter_favorites": playlist.get("filter_favorites")
+                "is_system_level": bool(playlist["is_system_level"]),
+                "filter_favorites": bool(playlist["filter_favorites"]) if playlist["filter_favorites"] is not None else None
             })
 
         # 同時儲存到伺服器檔案（供匯入使用）
@@ -1296,9 +1285,9 @@ async def import_playlists_config(
         # 如果需要替換現有，先清空資料庫
         if replace_existing:
             with db.get_connection() as conn:
-                with db.get_cursor(conn) as cur:
-                    cur.execute("DELETE FROM SmartPlaylists")
-                    conn.commit()
+                cur = db.get_cursor(conn)
+                cur.execute("DELETE FROM SmartPlaylists")
+                conn.commit()
             logger.info("已清空現有播放清單資料")
 
         # 匯入播放清單
@@ -1307,76 +1296,79 @@ async def import_playlists_config(
         updated_count = 0
 
         with db.get_connection() as conn:
-            with db.get_cursor(conn) as cur:
-                for playlist_data in playlists_to_import:
-                    playlist_name = playlist_data.get("name")
+            cur = db.get_cursor(conn)
+            for playlist_data in playlists_to_import:
+                playlist_name = playlist_data.get("name")
 
-                    if not playlist_name:
-                        logger.warning("跳過無名稱的播放清單")
-                        skipped_count += 1
-                        continue
+                if not playlist_name:
+                    logger.warning("跳過無名稱的播放清單")
+                    skipped_count += 1
+                    continue
 
-                    # 檢查是否已存在
-                    cur.execute(
-                        "SELECT id FROM SmartPlaylists WHERE name = %s",
-                        (playlist_name,)
-                    )
-                    existing = cur.fetchone()
+                # 檢查是否已存在
+                cur.execute(
+                    "SELECT id FROM SmartPlaylists WHERE name = ?",
+                    (playlist_name,)
+                )
+                existing = cur.fetchone()
 
-                    if existing and not replace_existing:
-                        logger.info(f"播放清單 '{playlist_name}' 已存在，跳過")
-                        skipped_count += 1
-                        continue
+                if existing and not replace_existing:
+                    logger.info(f"播放清單 '{playlist_name}' 已存在，跳過")
+                    skipped_count += 1
+                    continue
 
-                    # 插入或更新播放清單
-                    if existing:
-                        # 更新現有播放清單
-                        cur.execute("""
-                            UPDATE SmartPlaylists
-                            SET base_folder = %s,
-                                filter_language = %s,
-                                exclude_language = %s,
-                                filter_tags = %s,
-                                exclude_tags = %s,
-                                sort_by = %s,
-                                is_system_level = %s,
-                                filter_favorites = %s,
-                                updated_at = CURRENT_TIMESTAMP
-                            WHERE name = %s
-                        """, (
-                            playlist_data.get("base_folder", ""),
-                            playlist_data.get("filter_language", []),
-                            playlist_data.get("exclude_language", []),
-                            playlist_data.get("filter_tags", []),
-                            playlist_data.get("exclude_tags", []),
-                            playlist_data.get("sort_by", "file_creation_time"),
-                            playlist_data.get("is_system_level", False),
-                            playlist_data.get("filter_favorites"),
-                            playlist_name
-                        ))
-                        updated_count += 1
-                        logger.info(f"更新播放清單: {playlist_name}")
-                    else:
-                        # 插入新播放清單
-                        cur.execute("""
-                            INSERT INTO SmartPlaylists
-                            (name, base_folder, filter_language, exclude_language, filter_tags, exclude_tags, sort_by, is_system_level, filter_favorites)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (
-                            playlist_name,
-                            playlist_data.get("base_folder", ""),
-                            playlist_data.get("filter_language", []),
-                            playlist_data.get("exclude_language", []),
-                            playlist_data.get("filter_tags", []),
-                            playlist_data.get("exclude_tags", []),
-                            playlist_data.get("sort_by", "file_creation_time"),
-                            playlist_data.get("is_system_level", False),
-                            playlist_data.get("filter_favorites")
-                        ))
-                        imported_count += 1
-                        logger.info(f"新增播放清單: {playlist_name}")
+                fav = playlist_data.get("filter_favorites")
+                fav_value = 1 if fav else (0 if fav is False else None)
 
-                conn.commit()
+                # 插入或更新播放清單
+                if existing:
+                    # 更新現有播放清單
+                    cur.execute("""
+                        UPDATE SmartPlaylists
+                        SET base_folder = ?,
+                            filter_language = ?,
+                            exclude_language = ?,
+                            filter_tags = ?,
+                            exclude_tags = ?,
+                            sort_by = ?,
+                            is_system_level = ?,
+                            filter_favorites = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE name = ?
+                    """, (
+                        playlist_data.get("base_folder", ""),
+                        serialize_list(playlist_data.get("filter_language", [])),
+                        serialize_list(playlist_data.get("exclude_language", [])),
+                        serialize_list(playlist_data.get("filter_tags", [])),
+                        serialize_list(playlist_data.get("exclude_tags", [])),
+                        playlist_data.get("sort_by", "file_creation_time"),
+                        1 if playlist_data.get("is_system_level", False) else 0,
+                        fav_value,
+                        playlist_name
+                    ))
+                    updated_count += 1
+                    logger.info(f"更新播放清單: {playlist_name}")
+                else:
+                    # 插入新播放清單
+                    cur.execute("""
+                        INSERT INTO SmartPlaylists
+                        (name, base_folder, filter_language, exclude_language, filter_tags, exclude_tags, sort_by, is_system_level, filter_favorites)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        playlist_name,
+                        playlist_data.get("base_folder", ""),
+                        serialize_list(playlist_data.get("filter_language", [])),
+                        serialize_list(playlist_data.get("exclude_language", [])),
+                        serialize_list(playlist_data.get("filter_tags", [])),
+                        serialize_list(playlist_data.get("exclude_tags", [])),
+                        playlist_data.get("sort_by", "file_creation_time"),
+                        1 if playlist_data.get("is_system_level", False) else 0,
+                        fav_value
+                    ))
+                    imported_count += 1
+                    logger.info(f"新增播放清單: {playlist_name}")
+
+            conn.commit()
 
         result_message = f"匯入完成：新增 {imported_count} 個，更新 {updated_count} 個，跳過 {skipped_count} 個"
         logger.info(result_message)

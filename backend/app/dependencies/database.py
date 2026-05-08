@@ -1,171 +1,136 @@
 import os
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from psycopg2.pool import SimpleConnectionPool
+import json
+import sqlite3
 from contextlib import contextmanager
 from app.dependencies.logger import logger
 
 
+def serialize_list(value):
+    """將 Python list 序列化為 JSON 字串，供 SQLite TEXT 欄位儲存"""
+    if value is None or value == []:
+        return None
+    return json.dumps(value, ensure_ascii=False)
+
+
+def deserialize_list(value):
+    """將 SQLite TEXT 欄位的 JSON 字串反序列化為 Python list"""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return json.loads(value)
+
+
 class Database:
     def __init__(self):
-        self.pool = None
-        self._initialize_pool()
+        self.db_path = os.getenv('SQLITE_DB_PATH', '/app/data/musicmanager.db')
+        self._initialize_db()
 
-    def _initialize_pool(self):
-        """初始化資料庫連接池"""
+    def _initialize_db(self):
+        """初始化 SQLite 資料庫"""
         try:
-            self.pool = SimpleConnectionPool(
-                minconn=1,
-                maxconn=10,
-                host=os.getenv('POSTGRES_HOST', 'localhost'),
-                port=int(os.getenv('POSTGRES_PORT', 5432)),
-                database=os.getenv('POSTGRES_DB', 'musicmanager'),
-                user=os.getenv('POSTGRES_USER', 'musicuser'),
-                password=os.getenv('POSTGRES_PASSWORD', 'musicpass')
-            )
-            logger.info(f"成功連接到 PostgreSQL: {os.getenv('POSTGRES_HOST', 'localhost')}")
+            os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+
+            # 初始化 WAL 模式與外鍵支援
+            conn = sqlite3.connect(self.db_path)
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA foreign_keys=ON;")
+            conn.close()
+
+            logger.info(f"成功連接到 SQLite: {self.db_path}")
             self._create_tables()
         except Exception as e:
-            logger.error(f"無法連接到 PostgreSQL: {str(e)}")
+            logger.error(f"無法連接到 SQLite: {str(e)}")
             raise
+
+    def _column_exists(self, cursor, table, column):
+        """檢查資料表中是否存在指定欄位"""
+        cursor.execute(f"PRAGMA table_info({table})")
+        columns = [row[1] for row in cursor.fetchall()]
+        return column in columns
 
     def _create_tables(self):
         """建立資料表"""
         with self.get_connection() as conn:
-            with conn.cursor() as cur:
-                # 建立 SmartPlaylists 資料表
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS SmartPlaylists (
-                        id SERIAL PRIMARY KEY,
-                        name VARCHAR(255) NOT NULL,
-                        base_folder VARCHAR(255) NOT NULL,
-                        filter_language VARCHAR(50),
-                        filter_tags TEXT[],
-                        exclude_tags TEXT[],
-                        sort_by VARCHAR(50) DEFAULT 'file_creation_time',
-                        is_system_level BOOLEAN DEFAULT FALSE,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
+            cur = conn.cursor()
 
-                # 為現有表添加 is_system_level 欄位（如果不存在）
-                cur.execute("""
-                    DO $$
-                    BEGIN
-                        IF NOT EXISTS (
-                            SELECT 1 FROM information_schema.columns
-                            WHERE table_name='smartplaylists' AND column_name='is_system_level'
-                        ) THEN
-                            ALTER TABLE SmartPlaylists ADD COLUMN is_system_level BOOLEAN DEFAULT FALSE;
-                        END IF;
-                    END $$;
-                """)
+            # 建立 SmartPlaylists 資料表
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS SmartPlaylists (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    base_folder TEXT NOT NULL,
+                    filter_language TEXT,
+                    filter_tags TEXT,
+                    exclude_tags TEXT,
+                    sort_by TEXT DEFAULT 'file_creation_time',
+                    is_system_level INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
-                # 為現有表添加 filter_favorites 欄位（如果不存在）
-                cur.execute("""
-                    DO $$
-                    BEGIN
-                        IF NOT EXISTS (
-                            SELECT 1 FROM information_schema.columns
-                            WHERE table_name='smartplaylists' AND column_name='filter_favorites'
-                        ) THEN
-                            ALTER TABLE SmartPlaylists ADD COLUMN filter_favorites BOOLEAN;
-                        END IF;
-                    END $$;
-                """)
+            # 為現有表添加欄位（如果不存在）
+            if not self._column_exists(cur, 'SmartPlaylists', 'is_system_level'):
+                cur.execute("ALTER TABLE SmartPlaylists ADD COLUMN is_system_level INTEGER DEFAULT 0")
+                logger.info("已新增 is_system_level 欄位")
 
-                # 為現有表添加 exclude_language 欄位（如果不存在）
-                cur.execute("""
-                    DO $$
-                    BEGIN
-                        IF NOT EXISTS (
-                            SELECT 1 FROM information_schema.columns
-                            WHERE table_name='smartplaylists' AND column_name='exclude_language'
-                        ) THEN
-                            ALTER TABLE SmartPlaylists ADD COLUMN exclude_language TEXT[];
-                        END IF;
-                    END $$;
-                """)
+            if not self._column_exists(cur, 'SmartPlaylists', 'filter_favorites'):
+                cur.execute("ALTER TABLE SmartPlaylists ADD COLUMN filter_favorites INTEGER")
+                logger.info("已新增 filter_favorites 欄位")
 
-                # 將 filter_language 從 VARCHAR 轉為 TEXT[]（支援多選）
-                cur.execute("""
-                    DO $$
-                    BEGIN
-                        IF EXISTS (
-                            SELECT 1 FROM information_schema.columns
-                            WHERE table_name='smartplaylists' AND column_name='filter_language'
-                            AND data_type = 'character varying'
-                        ) THEN
-                            ALTER TABLE SmartPlaylists
-                                ALTER COLUMN filter_language TYPE TEXT[]
-                                USING CASE WHEN filter_language IS NOT NULL THEN ARRAY[filter_language] ELSE NULL END;
-                        END IF;
-                    END $$;
-                """)
+            if not self._column_exists(cur, 'SmartPlaylists', 'exclude_language'):
+                cur.execute("ALTER TABLE SmartPlaylists ADD COLUMN exclude_language TEXT")
+                logger.info("已新增 exclude_language 欄位")
 
-                # 將 exclude_language 從 VARCHAR 轉為 TEXT[]（支援多選）
-                cur.execute("""
-                    DO $$
-                    BEGIN
-                        IF EXISTS (
-                            SELECT 1 FROM information_schema.columns
-                            WHERE table_name='smartplaylists' AND column_name='exclude_language'
-                            AND data_type = 'character varying'
-                        ) THEN
-                            ALTER TABLE SmartPlaylists
-                                ALTER COLUMN exclude_language TYPE TEXT[]
-                                USING CASE WHEN exclude_language IS NOT NULL THEN ARRAY[exclude_language] ELSE NULL END;
-                        END IF;
-                    END $$;
-                """)
+            # 建立索引
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_smartplaylists_name
+                ON SmartPlaylists(name)
+            """)
 
-                # 建立索引
-                cur.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_smartplaylists_name
-                    ON SmartPlaylists(name)
-                """)
+            # 建立 Config 資料表
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS Config (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    config_key TEXT UNIQUE NOT NULL,
+                    config_value TEXT NOT NULL,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
-                # 建立 Config 資料表
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS Config (
-                        id SERIAL PRIMARY KEY,
-                        config_key VARCHAR(100) UNIQUE NOT NULL,
-                        config_value JSONB NOT NULL,
-                        description TEXT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
+            # 建立索引
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_config_key
+                ON Config(config_key)
+            """)
 
-                # 建立索引
-                cur.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_config_key
-                    ON Config(config_key)
-                """)
-
-                conn.commit()
-                logger.info("SmartPlaylists 資料表已建立")
-                logger.info("Config 資料表已建立")
+            conn.commit()
+            logger.info("SmartPlaylists 資料表已建立")
+            logger.info("Config 資料表已建立")
 
     @contextmanager
     def get_connection(self):
         """取得資料庫連接的 context manager"""
-        conn = self.pool.getconn()
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
         try:
             yield conn
+        except Exception:
+            conn.rollback()
+            raise
         finally:
-            self.pool.putconn(conn)
+            conn.close()
 
     def get_cursor(self, conn):
-        """取得 cursor (返回字典格式)"""
-        return conn.cursor(cursor_factory=RealDictCursor)
+        """取得 cursor（相容原有介面）"""
+        return conn.cursor()
 
     def close(self):
-        """關閉連接池"""
-        if self.pool:
-            self.pool.closeall()
-            logger.info("PostgreSQL 連接池已關閉")
+        """關閉資料庫（SQLite 無需連接池管理）"""
+        logger.info("SQLite 資料庫已關閉")
 
 
 # 建立全域資料庫實例
