@@ -20,6 +20,7 @@ from app.dependencies.mp3tag_reader import read_audio_tags
 from app.dependencies.redis_cache import redis_cache
 from app.dependencies.navidrome_hook import request_navidrome_refresh
 from app.dependencies.database import db, serialize_list, deserialize_list
+from app.services.shared_state import RedisDoc
 from app.router.config import get_config
 
 router = APIRouter(prefix="/playlists", tags=["playlists"])
@@ -27,8 +28,8 @@ router = APIRouter(prefix="/playlists", tags=["playlists"])
 # 支援的音訊檔案格式
 SUPPORTED_AUDIO_EXTENSIONS = ['.mp3', '.flac', '.m4a', '.ogg', '.wav']
 
-# 用於儲存批量生成任務狀態的全域變數
-_batch_task_status = {
+# 批量生成任務狀態：改用 Redis 持久化（跨重啟 / 多 worker；崩潰後不卡 running）。
+_BATCH_M3U_DEFAULT = {
     "status": "idle",  # idle, running, completed, error
     "progress": 0,
     "total": 0,
@@ -37,6 +38,7 @@ _batch_task_status = {
     "started_at": None,
     "completed_at": None
 }
+_batch_m3u_doc = RedisDoc("taskmgr:batch_m3u", _BATCH_M3U_DEFAULT)
 
 def get_config_value(key: str, default: Any = None) -> Any:
     """從資料庫取得設定值"""
@@ -1023,23 +1025,24 @@ def _download_playlist_m3u_impl(id: int):
 
 def _perform_batch_m3u_generation():
     """執行批量生成 M3U 檔案的背景任務"""
-    global _batch_task_status
+    status = _batch_m3u_doc.get()
 
     try:
         logger.info("背景任務：開始批量生成所有播放清單的 M3U 檔案")
 
-        _batch_task_status["status"] = "running"
-        _batch_task_status["message"] = "正在載入播放清單..."
+        status["status"] = "running"
+        status["message"] = "正在載入播放清單..."
+        _batch_m3u_doc.set(status)
 
         # 載入所有播放清單
         playlists_data = load_playlists()
 
         if not playlists_data:
-            _batch_task_status["status"] = "completed"
-            _batch_task_status["progress"] = 0
-            _batch_task_status["total"] = 0
-            _batch_task_status["message"] = "沒有播放清單需要生成"
-            _batch_task_status["result"] = {
+            status["status"] = "completed"
+            status["progress"] = 0
+            status["total"] = 0
+            status["message"] = "沒有播放清單需要生成"
+            status["result"] = {
                 "success": True,
                 "message": "沒有播放清單需要生成",
                 "generated_files": [],
@@ -1047,11 +1050,13 @@ def _perform_batch_m3u_generation():
                 "success_count": 0,
                 "error_count": 0
             }
-            _batch_task_status["completed_at"] = datetime.now().isoformat()
+            status["completed_at"] = datetime.now().isoformat()
+            _batch_m3u_doc.set(status)
             return
 
-        _batch_task_status["total"] = len(playlists_data)
-        _batch_task_status["message"] = "正在清理舊的 M3U 檔案..."
+        status["total"] = len(playlists_data)
+        status["message"] = "正在清理舊的 M3U 檔案..."
+        _batch_m3u_doc.set(status)
 
         # 第一步：收集所有需要清理的 Playlist 目錄
         playlist_dirs = set()
@@ -1086,7 +1091,8 @@ def _perform_batch_m3u_generation():
 
         logger.info(f"清理完成，共刪除 {cleaned_files_count} 個舊的 M3U 檔案")
 
-        _batch_task_status["message"] = "正在讀取音訊 catalog..."
+        status["message"] = "正在讀取音訊 catalog..."
+        _batch_m3u_doc.set(status)
         base_folders = sorted({
             playlist.get('base_folder', '')
             for playlist in playlists_data
@@ -1121,8 +1127,9 @@ def _perform_batch_m3u_generation():
                 base_folder = playlist.get('base_folder', '')
                 is_system_level = playlist.get('is_system_level', False)
 
-                _batch_task_status["progress"] = idx
-                _batch_task_status["message"] = f"正在生成播放清單 {idx + 1}/{len(playlists_data)}: {playlist_name}"
+                status["progress"] = idx
+                status["message"] = f"正在生成播放清單 {idx + 1}/{len(playlists_data)}: {playlist_name}"
+                _batch_m3u_doc.set(status)
                 logger.info(f"正在生成播放清單 {playlist_id}: {playlist_name}")
 
                 # 生成 M3U 內容（使用相對路徑）
@@ -1193,10 +1200,10 @@ def _perform_batch_m3u_generation():
                 error_count += 1
 
         # 更新任務狀態為完成
-        _batch_task_status["status"] = "completed"
-        _batch_task_status["progress"] = len(playlists_data)
-        _batch_task_status["message"] = f"批量生成完成：清理 {cleaned_files_count} 個舊檔案，成功生成 {success_count} 個，失敗 {error_count} 個"
-        _batch_task_status["result"] = {
+        status["status"] = "completed"
+        status["progress"] = len(playlists_data)
+        status["message"] = f"批量生成完成：清理 {cleaned_files_count} 個舊檔案，成功生成 {success_count} 個，失敗 {error_count} 個"
+        status["result"] = {
             "success": True,
             "message": f"批量生成完成：清理 {cleaned_files_count} 個舊檔案，成功生成 {success_count} 個，失敗 {error_count} 個",
             "generated_files": generated_files,
@@ -1206,7 +1213,8 @@ def _perform_batch_m3u_generation():
             "cleaned_files_count": cleaned_files_count,
             "errors": errors if errors else None
         }
-        _batch_task_status["completed_at"] = datetime.now().isoformat()
+        status["completed_at"] = datetime.now().isoformat()
+        _batch_m3u_doc.set(status)
 
         logger.info(f"背景任務完成：清理 {cleaned_files_count} 個舊檔案，成功生成 {success_count} 個，失敗 {error_count} 個")
         if success_count > 0:
@@ -1221,42 +1229,44 @@ def _perform_batch_m3u_generation():
     except Exception as e:
         error_msg = f"批量生成 M3U 檔案失敗: {str(e)}"
         logger.error(error_msg)
-        _batch_task_status["status"] = "error"
-        _batch_task_status["message"] = error_msg
-        _batch_task_status["result"] = {
+        status["status"] = "error"
+        status["message"] = error_msg
+        status["result"] = {
             "success": False,
             "message": error_msg,
             "error": str(e)
         }
-        _batch_task_status["completed_at"] = datetime.now().isoformat()
+        status["completed_at"] = datetime.now().isoformat()
+        _batch_m3u_doc.set(status)
 
 
 @router.post("/generate-all-m3u")
 async def generate_all_playlists_m3u(background_tasks: BackgroundTasks):
     """批量生成所有播放清單的 M3U 檔案到檔案系統（異步背景任務）"""
-    global _batch_task_status
+    current = _batch_m3u_doc.get()
 
     # 檢查是否有任務正在執行
-    if _batch_task_status["status"] == "running":
+    if current["status"] == "running":
         return {
             "success": False,
             "message": "已經有批量生成任務正在執行中",
-            "status": _batch_task_status["status"],
-            "progress": _batch_task_status["progress"],
-            "total": _batch_task_status["total"],
-            "current_message": _batch_task_status["message"]
+            "status": current["status"],
+            "progress": current["progress"],
+            "total": current["total"],
+            "current_message": current["message"]
         }
 
     # 重置任務狀態
-    _batch_task_status = {
+    started_at = datetime.now().isoformat()
+    _batch_m3u_doc.set({
         "status": "running",
         "progress": 0,
         "total": 0,
         "message": "正在初始化批量生成任務...",
         "result": None,
-        "started_at": datetime.now().isoformat(),
+        "started_at": started_at,
         "completed_at": None
-    }
+    })
 
     # 在背景執行批量生成任務
     background_tasks.add_task(_perform_batch_m3u_generation)
@@ -1267,23 +1277,23 @@ async def generate_all_playlists_m3u(background_tasks: BackgroundTasks):
         "success": True,
         "message": "批量生成任務已啟動，請使用 /playlists/generate-all-m3u/status 查詢進度",
         "status": "running",
-        "started_at": _batch_task_status["started_at"]
+        "started_at": started_at
     }
 
 
 @router.get("/generate-all-m3u/status")
 async def get_batch_generation_status():
     """查詢批量生成 M3U 檔案的任務狀態"""
-    global _batch_task_status
+    current = _batch_m3u_doc.get()
 
     return {
-        "status": _batch_task_status["status"],
-        "progress": _batch_task_status["progress"],
-        "total": _batch_task_status["total"],
-        "message": _batch_task_status["message"],
-        "result": _batch_task_status["result"],
-        "started_at": _batch_task_status["started_at"],
-        "completed_at": _batch_task_status["completed_at"]
+        "status": current["status"],
+        "progress": current["progress"],
+        "total": current["total"],
+        "message": current["message"],
+        "result": current["result"],
+        "started_at": current["started_at"],
+        "completed_at": current["completed_at"]
     }
 
 

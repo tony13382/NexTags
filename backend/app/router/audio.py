@@ -6,6 +6,7 @@ from app.dependencies.mp3tag_writer import write_tags
 from app.dependencies.redis_cache import redis_cache
 from app.dependencies.utils.replaygain import generate_replaygain
 from app.router.config import get_config
+from app.services.shared_state import RedisDoc
 import os
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -726,8 +727,9 @@ class BatchReplayGainResponse(BaseModel):
     processed_files: int
     failed_files: int
 
-# 全局變量存儲批量處理狀態
-_batch_replaygain_status = {
+# 批量處理狀態：改用 Redis 持久化（跨重啟 / 多 worker；崩潰後 is_running
+# 不會卡住）。累加在行程內 local dict 進行，於關鍵點寫入快照到 Redis。
+_BATCH_RG_DEFAULT = {
     "is_running": False,
     "total_files": 0,
     "processed_files": 0,
@@ -735,15 +737,17 @@ _batch_replaygain_status = {
     "current_file": "",
     "start_time": None
 }
+_batch_replaygain_doc = RedisDoc("taskmgr:batch_replaygain", _BATCH_RG_DEFAULT)
 
 def _run_batch_replaygain_sync():
     """同步執行批量 ReplayGain 生成（在背景執行）"""
     from app.dependencies.logger import logger
-    global _batch_replaygain_status
+    status = dict(_BATCH_RG_DEFAULT)
 
     try:
-        _batch_replaygain_status["is_running"] = True
-        _batch_replaygain_status["start_time"] = asyncio.get_event_loop().time() if asyncio.get_event_loop() else 0
+        status["is_running"] = True
+        status["start_time"] = asyncio.get_event_loop().time() if asyncio.get_event_loop() else 0
+        _batch_replaygain_doc.set(status)
 
         allow_folders = get_config('allow_folders') or []
         music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
@@ -756,48 +760,51 @@ def _run_batch_replaygain_sync():
                 audio_files = _scan_folder_sync(folder_path)
                 all_audio_files.extend(audio_files)
 
-        _batch_replaygain_status["total_files"] = len(all_audio_files)
-        _batch_replaygain_status["processed_files"] = 0
-        _batch_replaygain_status["failed_files"] = 0
+        status["total_files"] = len(all_audio_files)
+        status["processed_files"] = 0
+        status["failed_files"] = 0
+        _batch_replaygain_doc.set(status)
 
         logger.info(f"開始批量生成 ReplayGain，共 {len(all_audio_files)} 個檔案")
 
         # 批量處理每個檔案
         for i, file_path in enumerate(all_audio_files, 1):
             try:
-                _batch_replaygain_status["current_file"] = file_path
+                status["current_file"] = file_path
                 logger.info(f"處理 [{i}/{len(all_audio_files)}]: {file_path}")
                 success, msg = generate_replaygain(file_path)
                 if success:
-                    _batch_replaygain_status["processed_files"] += 1
+                    status["processed_files"] += 1
                     logger.info(f"成功 [{i}/{len(all_audio_files)}]: {file_path}")
                     if redis_cache is not None:
                         redis_cache.upsert_audio_record(file_path, read_audio_tags(file_path))
                 else:
-                    _batch_replaygain_status["failed_files"] += 1
+                    status["failed_files"] += 1
                     logger.error(f"失敗 [{i}/{len(all_audio_files)}]: {file_path} - {msg}")
             except Exception as e:
-                _batch_replaygain_status["failed_files"] += 1
+                status["failed_files"] += 1
                 logger.error(f"異常 [{i}/{len(all_audio_files)}]: {file_path} - {str(e)}")
+            _batch_replaygain_doc.set(status)
 
-        logger.info(f"批量生成完成：總計 {len(all_audio_files)}，成功 {_batch_replaygain_status['processed_files']}，失敗 {_batch_replaygain_status['failed_files']}")
+        logger.info(f"批量生成完成：總計 {len(all_audio_files)}，成功 {status['processed_files']}，失敗 {status['failed_files']}")
 
     except Exception as e:
         logger.error(f"批量生成 ReplayGain 異常: {str(e)}")
     finally:
-        _batch_replaygain_status["is_running"] = False
-        _batch_replaygain_status["current_file"] = ""
+        status["is_running"] = False
+        status["current_file"] = ""
+        _batch_replaygain_doc.set(status)
 
 @router.post("/replaygain/batch")
 async def generate_batch_replaygain():
     """啟動批量生成 ReplayGain 標籤（後台執行）"""
-    global _batch_replaygain_status
+    current = _batch_replaygain_doc.get()
 
-    if _batch_replaygain_status["is_running"]:
+    if current.get("is_running"):
         return {
             "success": False,
             "message": "批量生成已在進行中",
-            "status": _batch_replaygain_status
+            "status": current
         }
 
     # 在背景執行批量處理
@@ -814,5 +821,5 @@ async def get_batch_replaygain_status():
     """查詢批量生成 ReplayGain 的進度"""
     return {
         "success": True,
-        "status": _batch_replaygain_status
+        "status": _batch_replaygain_doc.get()
     }

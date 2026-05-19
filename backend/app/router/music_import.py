@@ -2,7 +2,7 @@ import os
 import uuid
 import shutil
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from pathlib import Path
 
@@ -69,6 +69,47 @@ def get_file_format(filename: str) -> AudioFormat:
     else:
         raise ValueError(f"不支援的音訊格式: {extension}")
 
+# 匯入 session 仍為行程內字典（完整 Redis 化牽涉整個匯入精靈狀態模型且
+# 無法在此完整驗證，留作後續）；此處先修記憶體洩漏：終態且過期者清除，
+# 並設總量硬上限，避免長期累積無限成長。
+_MAX_IMPORT_SESSIONS = 1000
+_IMPORT_SESSION_TTL = timedelta(hours=6)
+_IMPORT_TERMINAL = {ImportStatus.COMPLETED, ImportStatus.FAILED, "completed", "failed"}
+
+
+def _cleanup_import_sessions():
+    """清理已結束且過期的匯入 session，並限制總量。"""
+    try:
+        now = datetime.now()
+
+        # 1) 移除終態且超過 TTL 者
+        for fid in list(import_sessions.keys()):
+            session = import_sessions.get(fid) or {}
+            if session.get('status') in _IMPORT_TERMINAL:
+                ts = session.get('updated_at') or session.get('created_at')
+                if isinstance(ts, datetime) and (now - ts) > _IMPORT_SESSION_TTL:
+                    import_sessions.pop(fid, None)
+
+        # 2) 硬上限：先逐出最舊的終態 session，仍超量再逐出最舊者
+        if len(import_sessions) > _MAX_IMPORT_SESSIONS:
+            def _age_key(item):
+                session = item[1] or {}
+                return session.get('updated_at') or session.get('created_at') or now
+
+            ordered = sorted(import_sessions.items(), key=_age_key)
+            for fid, session in ordered:
+                if len(import_sessions) <= _MAX_IMPORT_SESSIONS:
+                    break
+                if (session or {}).get('status') in _IMPORT_TERMINAL:
+                    import_sessions.pop(fid, None)
+            for fid, _ in ordered:
+                if len(import_sessions) <= _MAX_IMPORT_SESSIONS:
+                    break
+                import_sessions.pop(fid, None)
+    except Exception as e:
+        logger.warning(f"清理匯入 session 時發生錯誤: {e}")
+
+
 def update_import_status(file_id: str, status: ImportStatus, **kwargs):
     """更新匯入狀態"""
     if file_id not in import_sessions:
@@ -79,12 +120,14 @@ def update_import_status(file_id: str, status: ImportStatus, **kwargs):
         }
     else:
         import_sessions[file_id]['status'] = status
-    
+
     # 更新額外資訊
     for key, value in kwargs.items():
         import_sessions[file_id][key] = value
-    
+
     import_sessions[file_id]['updated_at'] = datetime.now()
+
+    _cleanup_import_sessions()
 
 @router.post("/upload", response_model=FileUploadResponse)
 async def upload_music_file(
