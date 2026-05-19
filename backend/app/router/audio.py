@@ -373,6 +373,52 @@ async def get_audios(
         # 檢查是否需要過濾（有任何過濾參數或需要詳細資訊）
         has_filters = filterTitle or filterFolder or filterFavorite or filterLanguage
         need_details = details or has_filters
+
+        # 無任何 filter 時走 server-side 分頁（by_mtime ZSET），只讀該頁，
+        # 不再每次翻頁都全量載入+轉換+排序整個 catalog。
+        # 有 filter 或索引不可用時，落回下方既有全量路徑（資料不丟、僅較慢）。
+        if redis_cache is not None and not has_filters:
+            page_size = 100
+            paged = redis_cache.get_audio_records_page(p, page_size)
+            if paged is not None:
+                page = paged["page"]
+                if need_details:
+                    audio_data = [
+                        _catalog_record_to_audio_details(record, allow_folders)
+                        for record in paged["records"]
+                        if record.get("file_path")
+                    ]
+                else:
+                    audio_data = [
+                        record.get("file_path")
+                        for record in paged["records"]
+                        if record.get("file_path")
+                    ]
+                total_count = paged["total_count"]
+                total_pages = paged["total_pages"]
+                return {
+                    "audio_files": audio_data,
+                    "pagination": {
+                        "current_page": page,
+                        "page_size": page_size,
+                        "total_count": total_count,
+                        "total_pages": total_pages,
+                        "has_previous": page > 1,
+                        "has_next": page < total_pages
+                    },
+                    "allow_folders": allow_folders,
+                    "supported_languages": supported_languages,
+                    "details_mode": need_details,
+                    "filters": {
+                        "title": filterTitle,
+                        "folder": filterFolder,
+                        "favorite": filterFavorite,
+                        "language": filterLanguage
+                    },
+                    "sort_by": sortBy,
+                    "data_source": "redis_catalog"
+                }
+
         data_source = "filesystem"
         catalog_records = []
 
