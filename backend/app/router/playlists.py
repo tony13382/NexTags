@@ -17,6 +17,7 @@ from app.schemas.playlists import (
 from app.dependencies.logger import logger
 from app.dependencies.mp3tag_reader import read_audio_tags
 from app.dependencies.redis_cache import redis_cache
+from app.dependencies.navidrome_hook import request_navidrome_refresh
 from app.dependencies.database import db, serialize_list, deserialize_list
 from app.router.config import get_config
 
@@ -187,17 +188,64 @@ def find_audio_files(base_folder: str) -> List[str]:
 
     return audio_files
 
-def filter_songs_by_playlist(playlist: Dict[str, Any], audio_files: List[str]) -> List[str]:
+def get_catalog_records_for_folders(base_folders: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+    """從 Redis catalog 取得指定 base folders 的音訊 records。"""
+    if redis_cache is None or not base_folders:
+        return {}
+
+    records = redis_cache.get_audio_records(base_folders)
+    records_by_folder = {folder: [] for folder in base_folders}
+
+    for record in records:
+        folder = record.get("main_folder")
+        if folder:
+            records_by_folder.setdefault(folder, []).append(record)
+
+    return records_by_folder
+
+def build_caches_from_catalog(
+    records_by_folder: Dict[str, List[Dict[str, Any]]]
+) -> tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    """建立單批 playlist 生成共用的 tag 與 metadata cache。"""
+    tag_cache = {}
+    metadata_cache = {}
+
+    for records in records_by_folder.values():
+        for record in records:
+            file_path = record.get("file_path")
+            if not file_path:
+                continue
+            tag_cache[file_path] = record.get("tags", {}) or {}
+            metadata_cache[file_path] = record
+
+    return tag_cache, metadata_cache
+
+def get_tags_for_file(file_path: str, tag_cache: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """取得單檔 tag；批次生成時優先使用本地快取，避免重複打 Redis。"""
+    if tag_cache is not None and file_path in tag_cache:
+        return tag_cache[file_path]
+
+    if redis_cache is None:
+        tags = read_audio_tags(file_path)
+    else:
+        tags = redis_cache.get_cached_tags_with_fallback(file_path)
+
+    if tag_cache is not None:
+        tag_cache[file_path] = tags
+
+    return tags
+
+def filter_songs_by_playlist(
+    playlist: Dict[str, Any],
+    audio_files: List[str],
+    tag_cache: Optional[Dict[str, Dict[str, Any]]] = None
+) -> List[str]:
     """根據播放清單條件篩選歌曲"""
     filtered_songs = []
     
     for file_path in audio_files:
         try:
-            # 使用快取讀取檔案標籤
-            if redis_cache is None:
-                tags = read_audio_tags(file_path)
-            else:
-                tags = redis_cache.get_cached_tags_with_fallback(file_path)
+            tags = get_tags_for_file(file_path, tag_cache)
             
             # 檢查語言過濾條件（多選，符合任一即可）
             if playlist.get('filter_language'):
@@ -258,7 +306,10 @@ def filter_songs_by_playlist(playlist: Dict[str, Any], audio_files: List[str]) -
     
     return filtered_songs
 
-def sort_songs_by_creation_time(songs: List[str]) -> List[str]:
+def sort_songs_by_creation_time(
+    songs: List[str],
+    metadata_cache: Optional[Dict[str, Dict[str, Any]]] = None
+) -> List[str]:
     """根據檔案建立時間排序（新→舊）"""
     try:
         songs_with_time = []
@@ -266,13 +317,18 @@ def sort_songs_by_creation_time(songs: List[str]) -> List[str]:
 
         for i, song in enumerate(songs):
             try:
-                # 獲取檔案時間戳
-                stat = os.stat(song)
-                # Linux/Unix: st_ctime 是狀態改變時間，st_mtime 是修改時間
-                # Windows: st_ctime 是建立時間
-                # 為了跨平台相容性，我們同時記錄兩個時間戳
-                creation_time = stat.st_ctime  # 可能是建立時間（Windows）或狀態改變時間（Linux）
-                modification_time = stat.st_mtime  # 修改時間
+                cached_record = metadata_cache.get(song) if metadata_cache else None
+                if cached_record and cached_record.get("modification_time") is not None:
+                    modification_time = float(cached_record.get("modification_time") or 0)
+                    creation_time = modification_time
+                else:
+                    # 獲取檔案時間戳
+                    stat = os.stat(song)
+                    # Linux/Unix: st_ctime 是狀態改變時間，st_mtime 是修改時間
+                    # Windows: st_ctime 是建立時間
+                    # 為了跨平台相容性，我們同時記錄兩個時間戳
+                    creation_time = stat.st_ctime  # 可能是建立時間（Windows）或狀態改變時間（Linux）
+                    modification_time = stat.st_mtime  # 修改時間
 
                 # 使用修改時間作為排序基準，因為它在跨平台上更一致
                 sort_time = modification_time
@@ -311,7 +367,10 @@ def sort_songs_by_creation_time(songs: List[str]) -> List[str]:
         logger.error(f"排序歌曲失敗: {str(e)}")
         return songs
 
-def sort_songs_by_title(songs: List[str]) -> List[str]:
+def sort_songs_by_title(
+    songs: List[str],
+    tag_cache: Optional[Dict[str, Dict[str, Any]]] = None
+) -> List[str]:
     """根據歌曲標題排序（A→Z）"""
     try:
         songs_with_title = []
@@ -319,11 +378,7 @@ def sort_songs_by_title(songs: List[str]) -> List[str]:
 
         for i, song in enumerate(songs):
             try:
-                # 使用快取讀取檔案標籤
-                if redis_cache is None:
-                    tags = read_audio_tags(song)
-                else:
-                    tags = redis_cache.get_cached_tags_with_fallback(song)
+                tags = get_tags_for_file(song, tag_cache)
 
                 # 優先使用 titlesort，其次使用 title，最後使用檔案名
                 sort_title = tags.get('titlesort', '') or tags.get('title', '') or os.path.basename(song)
@@ -568,11 +623,18 @@ async def get_playlist_songs(
                 detail=f"播放清單 ID {id} 不存在"
             )
         
-        # 搜尋基礎資料夾中的音訊檔案
-        audio_files = find_audio_files(playlist['base_folder'])
+        records_by_folder = get_catalog_records_for_folders([playlist['base_folder']])
+        tag_cache, metadata_cache = build_caches_from_catalog(records_by_folder)
+        catalog_records = records_by_folder.get(playlist['base_folder'], [])
+
+        if catalog_records:
+            audio_files = [record["file_path"] for record in catalog_records if record.get("file_path")]
+        else:
+            # Redis catalog 尚未建立時，保留舊的檔案系統掃描 fallback。
+            audio_files = find_audio_files(playlist['base_folder'])
         
         # 根據播放清單條件篩選歌曲
-        filtered_songs = filter_songs_by_playlist(playlist, audio_files)
+        filtered_songs = filter_songs_by_playlist(playlist, audio_files, tag_cache)
         
         logger.info(f"篩選後找到 {len(filtered_songs)} 首歌曲，開始使用本地標籤排序")
         
@@ -598,30 +660,30 @@ async def get_playlist_songs(
         effective_sort_method = sort_by if sort_by != "creation_time" else playlist.get('sort_method', 'creation_time')
 
         if effective_sort_method == "title":
-            sorted_songs = sort_songs_by_title(filtered_songs)
+            sorted_songs = sort_songs_by_title(filtered_songs, tag_cache)
             sort_method_desc = "title"
         else:
             # 預設使用檔案建立時間排序（新→舊）
-            sorted_songs = sort_songs_by_creation_time(filtered_songs)
+            sorted_songs = sort_songs_by_creation_time(filtered_songs, metadata_cache)
             sort_method_desc = "file_creation_time"
         
         # 建立回傳的歌曲列表（包含排序日期資訊）
         songs_with_dates = []
         for file_path in sorted_songs:
             try:
-                # 使用快取讀取檔案標籤
-                if redis_cache is None:
-                    tags = read_audio_tags(file_path)
-                else:
-                    tags = redis_cache.get_cached_tags_with_fallback(file_path)
+                tags = get_tags_for_file(file_path, tag_cache)
                 song_name = tags.get('title', '') or os.path.basename(file_path)
                 
                 # 使用檔案修改時間作為主要時間來源
                 formatted_date = ""
                 file_creation_time = ""
                 try:
-                    stat = os.stat(file_path)
-                    dt = datetime.fromtimestamp(stat.st_mtime)
+                    cached_record = metadata_cache.get(file_path)
+                    if cached_record and cached_record.get("modification_time") is not None:
+                        modification_time = float(cached_record.get("modification_time") or 0)
+                    else:
+                        modification_time = os.stat(file_path).st_mtime
+                    dt = datetime.fromtimestamp(modification_time)
                     formatted_date = dt.strftime('%Y-%m-%d %H:%M:%S')
                     file_creation_time = dt.isoformat()
                 except Exception as e:
@@ -708,21 +770,37 @@ async def delete_playlist_endpoint(
 
 
 
-def generate_m3u_content(playlist: Dict[str, Any], playlist_name: str, use_relative_paths: bool = True) -> str:
+def generate_m3u_content(
+    playlist: Dict[str, Any],
+    playlist_name: str,
+    use_relative_paths: bool = True,
+    audio_files: Optional[List[str]] = None,
+    tag_cache: Optional[Dict[str, Dict[str, Any]]] = None,
+    metadata_cache: Optional[Dict[str, Dict[str, Any]]] = None
+) -> str:
     """生成 M3U 檔案內容的通用函數"""
-    # 搜尋基礎資料夾中的音訊檔案
-    audio_files = find_audio_files(playlist['base_folder'])
+    if audio_files is None:
+        records_by_folder = get_catalog_records_for_folders([playlist['base_folder']])
+        catalog_records = records_by_folder.get(playlist['base_folder'], [])
+        if catalog_records:
+            catalog_tag_cache, catalog_metadata_cache = build_caches_from_catalog(records_by_folder)
+            tag_cache = {**catalog_tag_cache, **(tag_cache or {})}
+            metadata_cache = {**catalog_metadata_cache, **(metadata_cache or {})}
+            audio_files = [record["file_path"] for record in catalog_records if record.get("file_path")]
+        else:
+            # Redis catalog 尚未建立時，保留舊的檔案系統掃描 fallback。
+            audio_files = find_audio_files(playlist['base_folder'])
 
     # 根據播放清單條件篩選歌曲
-    filtered_songs = filter_songs_by_playlist(playlist, audio_files)
+    filtered_songs = filter_songs_by_playlist(playlist, audio_files, tag_cache)
 
     # 根據播放清單設定的排序方式排序
     sort_method = playlist.get('sort_method', 'creation_time')
     if sort_method == 'title':
-        sorted_songs = sort_songs_by_title(filtered_songs)
+        sorted_songs = sort_songs_by_title(filtered_songs, tag_cache)
     else:
         # 預設使用檔案建立時間排序（新→舊）
-        sorted_songs = sort_songs_by_creation_time(filtered_songs)
+        sorted_songs = sort_songs_by_creation_time(filtered_songs, metadata_cache)
 
     logger.info(f"找到 {len(sorted_songs)} 首歌曲，生成 M3U 檔案")
 
@@ -744,11 +822,7 @@ def generate_m3u_content(playlist: Dict[str, Any], playlist_name: str, use_relat
     
     for file_path in sorted_songs:
         try:
-            # 使用快取讀取檔案標籤
-            if redis_cache is None:
-                tags = read_audio_tags(file_path)
-            else:
-                tags = redis_cache.get_cached_tags_with_fallback(file_path)
+            tags = get_tags_for_file(file_path, tag_cache)
             title = tags.get('title', '')
             artist = tags.get('artist', '')
             
@@ -848,6 +922,13 @@ async def generate_playlist_m3u_to_file(
             )
 
         logger.info(f"成功生成 M3U 檔案到: {m3u_file_path}")
+        request_navidrome_refresh(
+            "playlist_generate_m3u",
+            {
+                "playlist_id": id,
+                "file_path": m3u_file_path
+            }
+        )
         
         return {
             "success": True,
@@ -982,6 +1063,28 @@ def _perform_batch_m3u_generation():
 
         logger.info(f"清理完成，共刪除 {cleaned_files_count} 個舊的 M3U 檔案")
 
+        _batch_task_status["message"] = "正在讀取音訊 catalog..."
+        base_folders = sorted({
+            playlist.get('base_folder', '')
+            for playlist in playlists_data
+            if playlist.get('base_folder', '')
+        })
+        records_by_folder = get_catalog_records_for_folders(base_folders)
+        tag_cache, metadata_cache = build_caches_from_catalog(records_by_folder)
+        audio_files_by_base_folder = {}
+
+        for base_folder in base_folders:
+            catalog_records = records_by_folder.get(base_folder, [])
+            if catalog_records:
+                audio_files_by_base_folder[base_folder] = [
+                    record["file_path"]
+                    for record in catalog_records
+                    if record.get("file_path")
+                ]
+            else:
+                # Redis catalog 尚未建立或該資料夾尚無 record 時，退回單次掃描。
+                audio_files_by_base_folder[base_folder] = find_audio_files(base_folder)
+
         # 第三步：生成新的 M3U 檔案
         generated_files = []
         success_count = 0
@@ -1000,7 +1103,14 @@ def _perform_batch_m3u_generation():
                 logger.info(f"正在生成播放清單 {playlist_id}: {playlist_name}")
 
                 # 生成 M3U 內容（使用相對路徑）
-                m3u_content = generate_m3u_content(playlist, playlist_name, use_relative_paths=True)
+                m3u_content = generate_m3u_content(
+                    playlist,
+                    playlist_name,
+                    use_relative_paths=True,
+                    audio_files=audio_files_by_base_folder.get(base_folder),
+                    tag_cache=tag_cache,
+                    metadata_cache=metadata_cache
+                )
 
                 # 根據 is_system_level 決定輸出目錄路徑
                 if is_system_level:
@@ -1076,6 +1186,14 @@ def _perform_batch_m3u_generation():
         _batch_task_status["completed_at"] = datetime.now().isoformat()
 
         logger.info(f"背景任務完成：清理 {cleaned_files_count} 個舊檔案，成功生成 {success_count} 個，失敗 {error_count} 個")
+        if success_count > 0:
+            request_navidrome_refresh(
+                "playlist_batch_generate_m3u",
+                {
+                    "success_count": success_count,
+                    "total_count": len(playlists_data)
+                }
+            )
 
     except Exception as e:
         error_msg = f"批量生成 M3U 檔案失敗: {str(e)}"

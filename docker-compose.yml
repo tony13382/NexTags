@@ -7,7 +7,7 @@ services:
         USER_ID: ${USER_ID:-1000}
         GROUP_ID: ${GROUP_ID:-1000}
     ports:
-      - "6000:8000"
+      - "127.0.0.1:6000:8000"
     volumes:
       - ${MUSIC_ROOT_PATH}:/Music:rw
       - app-data:/app/data
@@ -26,7 +26,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.nginx
     ports:
-      - "4000:80"
+      - "127.0.0.1:4000:80"
     restart: unless-stopped
     networks:
       - app-network

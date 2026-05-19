@@ -68,11 +68,11 @@ async def get_all_configs():
             for row in results:
                 configs[row['config_key']] = json.loads(row['config_value'])
 
-                return {
-                    "success": True,
-                    "message": "成功取得設定",
-                    "data": configs
-                }
+            return {
+                "success": True,
+                "message": "成功取得設定",
+                "data": configs
+            }
 
     except Exception as e:
         error_msg = f"取得設定失敗: {str(e)}"

@@ -7,35 +7,32 @@ from mutagen.id3 import APIC
 from mutagen.oggvorbis import OggVorbis
 
 
-def extract_cover_from_audio(file_path, output_dir):
-    """從音訊檔案提取封面圖並保存為 cover.jpg 或 cover.png"""
+def get_cover_data_from_audio(file_path):
+    """從音訊檔案讀取 embedded cover data。"""
     try:
-        # 確保輸出目錄存在
-        os.makedirs(output_dir, exist_ok=True)
-        
         # 使用 mutagen 讀取音訊檔案
         audio_file = MutagenFile(file_path)
-        
+
         if audio_file is None:
-            return False, ""
-        
+            return None, None
+
         cover_data = None
         mime_type = None
-        
+
         if isinstance(audio_file, MP4):
             # MP4/M4A 檔案
             if "covr" in audio_file.tags:
                 artwork = audio_file.tags["covr"][0]
                 cover_data = bytes(artwork)
                 mime_type = "image/jpeg" if artwork.imageformat == MP4Cover.FORMAT_JPEG else "image/png"
-                
+
         elif isinstance(audio_file, FLAC):
             # FLAC 檔案
             if audio_file.pictures:
                 picture = audio_file.pictures[0]
                 cover_data = picture.data
                 mime_type = picture.mime
-                
+
         elif isinstance(audio_file, MP3):
             # MP3 檔案
             if audio_file.tags:
@@ -44,7 +41,7 @@ def extract_cover_from_audio(file_path, output_dir):
                         cover_data = tag.data
                         mime_type = tag.mime
                         break
-                        
+
         elif isinstance(audio_file, OggVorbis):
             # OGG Vorbis 檔案
             # OGG 使用 FLAC-style 圖片存儲
@@ -68,7 +65,23 @@ def extract_cover_from_audio(file_path, output_dir):
                             mime_type = "image/png"
                 except Exception:
                     pass
-        
+
+        return cover_data, mime_type
+
+    except Exception as e:
+        print(f"讀取封面圖檔時發生錯誤: {str(e)}")
+
+    return None, None
+
+
+def extract_cover_from_audio(file_path, output_dir):
+    """從音訊檔案提取封面圖並保存為 cover.jpg 或 cover.png"""
+    try:
+        # 確保輸出目錄存在
+        os.makedirs(output_dir, exist_ok=True)
+
+        cover_data, mime_type = get_cover_data_from_audio(file_path)
+
         # 如果成功提取到封面數據
         if cover_data and mime_type:
             # 決定檔案副檔名

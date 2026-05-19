@@ -4,11 +4,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import TaskStatusDialog from '@/components/TaskStatusDialog';
 
 interface CacheStatistics {
     actual_files: {
         total: number;
         by_folder: Record<string, number>;
+        source?: 'cache' | 'filesystem';
     };
     cached_files: {
         total: number;
@@ -42,6 +44,8 @@ export default function Cache() {
     const [rebuilding, setRebuilding] = useState(false);
     const [waitImportFiles, setWaitImportFiles] = useState<WaitImportFile[]>([]);
     const [loadingWaitImport, setLoadingWaitImport] = useState(false);
+    const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+    const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
 
     // Dialog states
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -61,9 +65,14 @@ export default function Cache() {
     const handleRebuildCache = async () => {
         setRebuilding(true);
         try {
-            await api.post('cache/rebuild');
-            await fetchStatistics();
-            toast.success('快取重建完成');
+            const data = await api.post('cache/rebuild') as { success?: boolean; task_id?: string; message?: string };
+            if (data.success && data.task_id) {
+                setCurrentTaskId(data.task_id);
+                setTaskDialogOpen(true);
+                toast.success(data.message || '快取重建已啟動');
+            } else {
+                toast.error(data.message || '重建快取失敗');
+            }
         } catch (error) {
             console.error('重建快取失敗:', error);
             toast.error('重建快取失敗');
@@ -312,7 +321,14 @@ export default function Cache() {
                     <hr />
                     {/* 實際檔案數據 */}
                     <div>
-                        <h2 className="text-xl font-semibold mb-4">實際檔案數據</h2>
+                        <div className="flex items-center gap-3 mb-4">
+                            <h2 className="text-xl font-semibold">實際檔案數據</h2>
+                            {statistics.actual_files.source === 'cache' && (
+                                <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
+                                    以快取估算
+                                </span>
+                            )}
+                        </div>
                         <div>
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
                                 {statistics.folders.map((folder) => (
@@ -362,6 +378,20 @@ export default function Cache() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <TaskStatusDialog
+                taskId={currentTaskId}
+                isOpen={taskDialogOpen}
+                onClose={() => {
+                    setTaskDialogOpen(false);
+                    setCurrentTaskId(null);
+                }}
+                onComplete={async (result) => {
+                    await fetchStatistics();
+                    setCurrentTaskId(null);
+                    toast.success(String(result?.message || '快取重建完成'), { duration: 5000 });
+                }}
+            />
         </div>
     );
 }

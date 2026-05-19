@@ -9,7 +9,7 @@ from app.router.config import get_config
 import os
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import math
 
 router = APIRouter(prefix="/audios", tags=["tools"])
@@ -61,6 +61,104 @@ def _find_cover_art(file_path: str) -> str:
         if os.path.exists(cover_path):
             return cover_path
     return ""
+
+def _tag_to_string(value, field_name=None):
+    if isinstance(value, list):
+        if field_name in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
+            return ';'.join(str(v) for v in value) if value else ''
+        return ' '.join(str(v) for v in value) if value else ''
+    return str(value) if value else ''
+
+def _get_favorite_status(tags: Dict[str, Any]) -> str:
+    favorite_keys = [
+        'favorite', 'FAVORITE', 'Favorite',
+        'fav', 'FAV', 'Fav',
+        'liked', 'LIKED', 'Liked',
+        'love', 'LOVE', 'Love',
+        'rating', 'RATING', 'Rating'
+    ]
+
+    for key in favorite_keys:
+        if key in tags:
+            value = _tag_to_string(tags[key]).lower()
+            if value in ['true', '1', 'yes', 'y', 'liked', 'favorite', 'love']:
+                return "True"
+            if value in ['false', '0', 'no', 'n', '']:
+                return "False"
+            if key.lower() == 'rating':
+                try:
+                    rating_value = float(value)
+                    return "True" if rating_value > 3 else "False"
+                except Exception:
+                    pass
+
+    return "False"
+
+def _audio_details_from_tags(
+    file_path: str,
+    tags: Dict[str, Any],
+    allow_folders: List[str],
+    modification_time: Optional[float] = None,
+    cover_path: Optional[str] = None,
+    main_folder: Optional[str] = None
+) -> dict:
+    if modification_time is None:
+        modification_time = os.path.getmtime(file_path) if os.path.exists(file_path) else 0
+
+    if not main_folder:
+        main_folder = "unknown"
+        music_base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'Music')
+        for folder_name in allow_folders:
+            folder_path = os.path.join(music_base_path, folder_name)
+            if file_path.startswith(folder_path):
+                main_folder = folder_name
+                break
+
+    genre = tags.get('genre', [])
+    if isinstance(genre, list):
+        genre_list = genre if genre else ['']
+    elif isinstance(genre, str):
+        genre_list = [genre] if genre else ['']
+    else:
+        genre_list = ['']
+
+    return {
+        "Title": _tag_to_string(tags.get('title', ''), 'title'),
+        "SortTitle": _tag_to_string(tags.get('titlesort', ''), 'titlesort'),
+        "Artist": _tag_to_string(tags.get('artist', ''), 'artist'),
+        "SortArtist": _tag_to_string(tags.get('artistsort', ''), 'artistsort'),
+        "Album": _tag_to_string(tags.get('album', ''), 'album'),
+        "SortAlbum": _tag_to_string(tags.get('albumsort', ''), 'albumsort'),
+        "AlbumArtist": _tag_to_string(tags.get('albumartist', ''), 'albumartist'),
+        "SortAlbumArtist": _tag_to_string(tags.get('albumartistsort', ''), 'albumartistsort'),
+        "Composer": _tag_to_string(tags.get('composer', ''), 'composer'),
+        "SortComposer": _tag_to_string(tags.get('composersort', ''), 'composersort'),
+        "Performer": _tag_to_string(tags.get('performer', ''), 'performer'),
+        "SortPerformer": _tag_to_string(tags.get('performersort', ''), 'performersort'),
+        "DiscNumber": _tag_to_string(tags.get('discnumber', ''), 'discnumber'),
+        "DiscTotal": _tag_to_string(tags.get('disctotal', ''), 'disctotal'),
+        "MainFolder": main_folder,
+        "FilePath": file_path,
+        "Genre": genre_list,
+        "Language": _tag_to_string(tags.get('language', ''), 'language'),
+        "Favorite": _get_favorite_status(tags),
+        "Cover": cover_path if cover_path is not None else _find_cover_art(file_path),
+        "Lyrics": _tag_to_string(tags.get('lyrics', ''), 'lyrics'),
+        "Comment": _tag_to_string(tags.get('comment', ''), 'comment'),
+        "ReplayGainTrackGain": _tag_to_string(tags.get('replaygain_track_gain', ''), 'replaygain_track_gain'),
+        "ReplayGainTrackPeak": _tag_to_string(tags.get('replaygain_track_peak', ''), 'replaygain_track_peak'),
+        "ModificationTime": modification_time
+    }
+
+def _catalog_record_to_audio_details(record: Dict[str, Any], allow_folders: List[str]) -> dict:
+    return _audio_details_from_tags(
+        record.get("file_path", ""),
+        record.get("tags", {}) or {},
+        allow_folders,
+        modification_time=record.get("modification_time", 0),
+        cover_path=record.get("cover_path", ""),
+        main_folder=record.get("main_folder")
+    )
 
 def _extract_audio_details_sync(file_path: str, allow_folders: List[str]) -> dict:
     """同步提取單個音訊檔案的詳細資訊"""
@@ -272,61 +370,113 @@ async def get_audios(
             folder_path = os.path.join(music_base_path, folder_name)
             folder_paths.append(folder_path)
 
-        # 併發掃描所有資料夾
-        all_audio_files = await scan_multiple_folders_concurrent(folder_paths)
-        
         # 檢查是否需要過濾（有任何過濾參數或需要詳細資訊）
         has_filters = filterTitle or filterFolder or filterFavorite or filterLanguage
         need_details = details or has_filters
-        
-        if need_details:
-            # 提取所有檔案的詳細資訊（用於過濾）
-            all_detailed_info = await get_audio_details_concurrent(all_audio_files, allow_folders)
-            
-            # 套用過濾條件
+        data_source = "filesystem"
+        catalog_records = []
+
+        if redis_cache is not None:
+            catalog_records = redis_cache.get_audio_records()
+
+        if catalog_records:
+            data_source = "redis_catalog"
+
+        if catalog_records and need_details:
+            all_detailed_info = [
+                _catalog_record_to_audio_details(record, allow_folders)
+                for record in catalog_records
+                if record.get("file_path")
+            ]
+
             if has_filters:
                 filtered_info = apply_filters(all_detailed_info, filterTitle, filterFolder, filterFavorite, filterLanguage)
             else:
                 filtered_info = all_detailed_info
-            
-            # 按修改時間排序（最新的在前）
+
             filtered_info.sort(key=lambda x: x.get('ModificationTime', 0), reverse=True)
-            
-            # 分頁參數（基於過濾後的結果）
+
             page_size = 100
             total_count = len(filtered_info)
             total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
-            
-            # 驗證頁數
+
             if p > total_pages:
                 p = total_pages
-            
-            # 計算分頁範圍
+
             start_index = (p - 1) * page_size
             end_index = start_index + page_size
-            paginated_data = filtered_info[start_index:end_index]
-            
-            audio_data = paginated_data
-            
-        else:
-            # 簡單模式（無過濾，無詳細資訊）
-            # 按修改時間排序（最新的在前）
-            all_audio_files.sort(key=lambda x: _get_file_modification_time(x), reverse=True)
-            
+            audio_data = filtered_info[start_index:end_index]
+
+        elif catalog_records:
+            catalog_records.sort(key=lambda x: x.get('modification_time', 0), reverse=True)
+
             page_size = 100
-            total_count = len(all_audio_files)
+            total_count = len(catalog_records)
             total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
-            
-            # 驗證頁數
+
             if p > total_pages:
                 p = total_pages
-            
-            # 計算分頁範圍
+
             start_index = (p - 1) * page_size
             end_index = start_index + page_size
-            paginated_files = all_audio_files[start_index:end_index]
-            
-            audio_data = paginated_files
+            audio_data = [
+                record.get("file_path")
+                for record in catalog_records[start_index:end_index]
+                if record.get("file_path")
+            ]
+
+        else:
+            # Redis catalog 尚未建立時，保留舊的檔案系統掃描 fallback。
+            all_audio_files = await scan_multiple_folders_concurrent(folder_paths)
+        
+            if need_details:
+                # 提取所有檔案的詳細資訊（用於過濾）
+                all_detailed_info = await get_audio_details_concurrent(all_audio_files, allow_folders)
+
+                # 套用過濾條件
+                if has_filters:
+                    filtered_info = apply_filters(all_detailed_info, filterTitle, filterFolder, filterFavorite, filterLanguage)
+                else:
+                    filtered_info = all_detailed_info
+
+                # 按修改時間排序（最新的在前）
+                filtered_info.sort(key=lambda x: x.get('ModificationTime', 0), reverse=True)
+
+                # 分頁參數（基於過濾後的結果）
+                page_size = 100
+                total_count = len(filtered_info)
+                total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
+
+                # 驗證頁數
+                if p > total_pages:
+                    p = total_pages
+
+                # 計算分頁範圍
+                start_index = (p - 1) * page_size
+                end_index = start_index + page_size
+                paginated_data = filtered_info[start_index:end_index]
+
+                audio_data = paginated_data
+
+            else:
+                # 簡單模式（無過濾，無詳細資訊）
+                # 按修改時間排序（最新的在前）
+                all_audio_files.sort(key=lambda x: _get_file_modification_time(x), reverse=True)
+
+                page_size = 100
+                total_count = len(all_audio_files)
+                total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
+
+                # 驗證頁數
+                if p > total_pages:
+                    p = total_pages
+
+                # 計算分頁範圍
+                start_index = (p - 1) * page_size
+                end_index = start_index + page_size
+                paginated_files = all_audio_files[start_index:end_index]
+
+                audio_data = paginated_files
         
         return {
             "audio_files": audio_data,
@@ -347,7 +497,8 @@ async def get_audios(
                 "favorite": filterFavorite,
                 "language": filterLanguage
             },
-            "sort_by": sortBy
+            "sort_by": sortBy,
+            "data_source": data_source
         }
         
     except FileNotFoundError:
@@ -373,34 +524,44 @@ async def debug_audio_tags(file_path: str = Query(..., description="音訊檔案
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"讀取標籤時發生錯誤: {str(e)}")
 
+def _write_tags_and_refresh_sync(path: str, merged_tags: dict) -> bool:
+    """寫入標籤並刷新 Redis catalog（同步、阻塞，需在執行緒池中執行）。"""
+    success = write_tags(path, merged_tags)
+    if not success:
+        return False
+    # 更新完標籤後，同步刷新 Redis catalog，避免列表與播放清單讀到舊資料。
+    if redis_cache is not None:
+        redis_cache.upsert_audio_record(path, read_audio_tags(path))
+    return True
+
 @router.put("/update", response_model=AudioUpdateResponse)
 async def update_audio_tags(request: AudioUpdateRequest):
     """更新音訊檔案的標籤"""
     try:
         if not os.path.exists(request.path):
             raise HTTPException(status_code=404, detail="檔案不存在")
-        
+
         if not os.path.isfile(request.path):
             raise HTTPException(status_code=400, detail="路徑不是檔案")
-        
+
         # 將 tags 列表合併為單一字典
         merged_tags = {}
         for tag_dict in request.tags:
             merged_tags.update(tag_dict)
-        
-        # 寫入標籤
-        success = write_tags(request.path, merged_tags)
-        
+
+        # 寫標籤 + 刷新 catalog 都是阻塞 I/O（mutagen 寫檔、遠端掛載 stat、Redis），
+        # 丟到執行緒池，避免卡住 event loop 影響其他請求。
+        loop = asyncio.get_event_loop()
+        success = await loop.run_in_executor(
+            None, _write_tags_and_refresh_sync, request.path, merged_tags
+        )
+
         if not success:
             return AudioUpdateResponse(
                 success=False,
                 message="無法更新檔案標籤"
             )
-        
-        # 更新完標籤後，從快取中移除舊的標籤，讓下次讀取時重新載入
-        if redis_cache is not None:
-            redis_cache.remove_tags(request.path)
-        
+
         return AudioUpdateResponse(
             success=True,
             message="成功更新標籤",
@@ -471,6 +632,14 @@ class ReplayGainResponse(BaseModel):
     message: str
     path: str
 
+def _generate_replaygain_and_refresh_sync(path: str):
+    """生成 ReplayGain 並刷新 catalog（同步、阻塞，需在執行緒池中執行）。"""
+    success, message = generate_replaygain(path)
+    if success and redis_cache is not None:
+        # 刷新快取，讓列表與播放清單立即看到新的 ReplayGain 標籤
+        redis_cache.upsert_audio_record(path, read_audio_tags(path))
+    return success, message
+
 @router.post("/replaygain", response_model=ReplayGainResponse)
 async def generate_audio_replaygain(request: ReplayGainRequest):
     """為音訊檔案生成 ReplayGain 標籤"""
@@ -481,14 +650,14 @@ async def generate_audio_replaygain(request: ReplayGainRequest):
         if not os.path.isfile(request.path):
             raise HTTPException(status_code=400, detail="路徑不是檔案")
 
-        # 呼叫 r128gain 生成 ReplayGain
-        success, message = generate_replaygain(request.path)
+        # ffmpeg 子程序（最長 120s）+ mutagen 讀檔 + Redis 寫入皆為阻塞 I/O，
+        # 一律丟執行緒池，避免單一請求卡死整個 worker。
+        loop = asyncio.get_event_loop()
+        success, message = await loop.run_in_executor(
+            None, _generate_replaygain_and_refresh_sync, request.path
+        )
 
         if success:
-            # 清除快取，讓下次讀取時可以看到新的 ReplayGain 標籤
-            if redis_cache is not None:
-                redis_cache.remove_tags(request.path)
-
             return ReplayGainResponse(
                 success=True,
                 message=message,
@@ -557,7 +726,7 @@ def _run_batch_replaygain_sync():
                     _batch_replaygain_status["processed_files"] += 1
                     logger.info(f"成功 [{i}/{len(all_audio_files)}]: {file_path}")
                     if redis_cache is not None:
-                        redis_cache.remove_tags(file_path)
+                        redis_cache.upsert_audio_record(file_path, read_audio_tags(file_path))
                 else:
                     _batch_replaygain_status["failed_files"] += 1
                     logger.error(f"失敗 [{i}/{len(all_audio_files)}]: {file_path} - {msg}")

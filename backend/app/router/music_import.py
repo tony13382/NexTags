@@ -1,6 +1,7 @@
 import os
 import uuid
 import shutil
+import asyncio
 from datetime import datetime
 from typing import Dict, Any, List
 from pathlib import Path
@@ -20,6 +21,8 @@ from app.schemas.music_import import (
 )
 from app.dependencies.mp3tag_reader import read_audio_tags
 from app.dependencies.mp3tag_writer import write_tags
+from app.dependencies.redis_cache import redis_cache
+from app.dependencies.navidrome_hook import request_navidrome_refresh
 from app.dependencies.utils.audio_converter import convert_to_flac
 from app.dependencies.utils.cover_art import save_cover_art, extract_cover_from_audio
 from app.dependencies.utils.replaygain import generate_replaygain
@@ -780,6 +783,48 @@ async def finalize_file_preparation(request: FinalizeFileRequest):
             import_sessions[request.file_id]['errors'].append(f"檔案準備失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=f"檔案準備失敗: {str(e)}")
 
+def _confirm_move_sync(temp_path: str, preview_final_path: str, replaygain_applied: bool) -> bool:
+    """確認移動的阻塞部分（ReplayGain / 搬檔 / 封面 / 刷新 catalog），需在執行緒池中執行。
+
+    回傳更新後的 replaygain_applied 狀態。
+    """
+    # 如果尚未生成 ReplayGain，自動生成
+    if not replaygain_applied:
+        logger.info(f"自動生成 ReplayGain: {temp_path}")
+        rg_success, rg_message = generate_replaygain(temp_path)
+        if rg_success:
+            replaygain_applied = True
+            logger.info(f"ReplayGain 自動生成成功: {rg_message}")
+        else:
+            logger.warning(f"ReplayGain 自動生成失敗，繼續移動檔案: {rg_message}")
+
+    # 確保目標目錄存在
+    os.makedirs(os.path.dirname(preview_final_path), exist_ok=True)
+
+    # 移動檔案
+    shutil.move(temp_path, preview_final_path)
+
+    # 如果專輯資料夾尚無封面，從最終音檔補抽一次。
+    album_dir = os.path.dirname(preview_final_path)
+    cover_files = ['cover.jpg', 'cover.jpeg', 'cover.png', 'folder.jpg', 'folder.jpeg', 'folder.png']
+    has_cover = any(os.path.exists(os.path.join(album_dir, name)) for name in cover_files)
+    if not has_cover:
+        cover_extracted, cover_path = extract_cover_from_audio(preview_final_path, album_dir)
+        if cover_extracted:
+            logger.info(f"封面已提取到專輯資料夾: {cover_path}")
+        else:
+            logger.info(f"最終音檔未包含可提取封面: {preview_final_path}")
+
+    if redis_cache is not None:
+        redis_cache.upsert_audio_record(preview_final_path, read_audio_tags(preview_final_path))
+
+    request_navidrome_refresh(
+        "music_import_confirm_move",
+        {"final_path": preview_final_path}
+    )
+
+    return replaygain_applied
+
 @router.post("/confirm-move", response_model=ConfirmMoveResponse)
 async def confirm_file_move(request: ConfirmMoveRequest):
     """確認並執行檔案移動到最終位置"""
@@ -797,22 +842,18 @@ async def confirm_file_move(request: ConfirmMoveRequest):
         if not os.path.exists(temp_path):
             raise HTTPException(status_code=404, detail="暫存檔案不存在")
 
-        # 如果尚未生成 ReplayGain，自動生成
-        if not session.get('replaygain_applied'):
-            logger.info(f"自動生成 ReplayGain: {temp_path}")
-            rg_success, rg_message = generate_replaygain(temp_path)
-            if rg_success:
-                session['replaygain_applied'] = True
-                logger.info(f"ReplayGain 自動生成成功: {rg_message}")
-            else:
-                logger.warning(f"ReplayGain 自動生成失敗，繼續移動檔案: {rg_message}")
+        # ReplayGain（ffmpeg 子程序最長 120s）、shutil.move、封面提取、mutagen 讀檔、
+        # Redis 寫入全是阻塞 I/O，整批丟執行緒池，避免卡死 event loop。
+        loop = asyncio.get_event_loop()
+        replaygain_applied = await loop.run_in_executor(
+            None,
+            _confirm_move_sync,
+            temp_path,
+            preview_final_path,
+            bool(session.get('replaygain_applied')),
+        )
+        session['replaygain_applied'] = replaygain_applied
 
-        # 確保目標目錄存在
-        os.makedirs(os.path.dirname(preview_final_path), exist_ok=True)
-        
-        # 移動檔案
-        shutil.move(temp_path, preview_final_path)
-        
         # 更新匯入狀態
         update_import_status(
             request.file_id,

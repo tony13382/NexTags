@@ -1,6 +1,8 @@
 import os
 import subprocess
-from mutagen.flac import FLAC
+from mutagen.flac import FLAC, Picture
+
+from .cover_art import get_cover_data_from_audio
 
 
 def ensure_output_directory(output_file):
@@ -50,12 +52,35 @@ def set_flac_tags(output_file, tags):
     flac_file.save()
 
 
+def preserve_cover_to_flac(input_file, output_file):
+    """將來源音檔的 embedded cover 寫入轉出的 FLAC。"""
+    try:
+        cover_data, mime_type = get_cover_data_from_audio(input_file)
+        if not cover_data or not mime_type:
+            return False
+
+        flac_file = FLAC(output_file)
+        picture = Picture()
+        picture.type = 3
+        picture.mime = mime_type
+        picture.desc = "Cover"
+        picture.data = cover_data
+        flac_file.clear_pictures()
+        flac_file.add_picture(picture)
+        flac_file.save()
+        return True
+    except Exception as e:
+        print(f"保留封面圖檔時發生錯誤: {str(e)}")
+        return False
+
+
 def convert_to_flac(input_file, output_file, tags):
     """將音訊檔案轉換為 FLAC 並設定標籤"""
     try:
         ensure_output_directory(output_file)
         convert_audio_to_flac(input_file, output_file)
         set_flac_tags(output_file, tags)
+        preserve_cover_to_flac(input_file, output_file)
         return True
 
     except subprocess.CalledProcessError as e:

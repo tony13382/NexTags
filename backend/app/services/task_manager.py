@@ -24,6 +24,23 @@ class TaskManager:
         
         # 確保存儲目錄存在
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        self._mark_interrupted_tasks_failed()
+
+    def _mark_interrupted_tasks_failed(self):
+        """服務重啟後，將舊的 pending/running 任務標成失敗，避免卡住新任務。"""
+        tasks = self._load_tasks()
+        changed = False
+
+        for task in tasks.values():
+            if task.get("status") in [TaskStatus.PENDING.value, TaskStatus.RUNNING.value]:
+                task["status"] = TaskStatus.FAILED.value
+                task["updated_at"] = datetime.now().isoformat()
+                task["error"] = "任務因服務重啟中斷"
+                changed = True
+
+        if changed:
+            self._save_tasks(tasks)
+            logger.warning("已將服務重啟前未完成的任務標記為失敗")
         
     def _load_tasks(self) -> Dict[str, Any]:
         """載入任務狀態"""
@@ -148,8 +165,13 @@ class TaskManager:
         """執行任務"""
         try:
             logger.info(f"開始執行任務: {task_id} (類型: {task_type})")
-            
-            raise ValueError(f"未知的任務類型: {task_type}")
+
+            if task_type == "cache_rebuild":
+                from app.router.cache import perform_cache_rebuild
+
+                result = await perform_cache_rebuild(task_id)
+            else:
+                raise ValueError(f"未知的任務類型: {task_type}")
             
             # 任務完成
             self.update_task_status(task_id, TaskStatus.COMPLETED, result=result, progress=100)
