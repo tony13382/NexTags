@@ -1,6 +1,7 @@
 import json
 import os
 import glob
+import asyncio
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -609,6 +610,14 @@ async def get_playlist_songs(
     sort_by: str = Query("creation_time", description="排序方式: creation_time 或 title")
 ):
     """取得指定播放清單的歌曲清單，包含排序日期資訊"""
+    # 整個流程是同步阻塞 I/O（catalog/檔案系統掃描、讀標籤、os.stat），
+    # 丟執行緒池執行，避免卡住 event loop 影響其他請求。
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _get_playlist_songs_impl, id, sort_by)
+
+
+def _get_playlist_songs_impl(id: int, sort_by: str):
+    """取得播放清單歌曲清單的同步實作（於執行緒池執行）"""
     try:
         logger.info(f"取得播放清單 ID {id} 的歌曲清單（包含排序日期）")
 
@@ -869,6 +878,13 @@ async def generate_playlist_m3u_to_file(
     id: int = FastAPIPath(..., ge=1, description="播放清單 ID")
 ):
     """生成播放清單 M3U 檔案到檔案系統"""
+    # M3U 生成需掃描/讀標籤並寫檔，全是同步阻塞 I/O，丟執行緒池。
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _generate_playlist_m3u_to_file_impl, id)
+
+
+def _generate_playlist_m3u_to_file_impl(id: int):
+    """生成播放清單 M3U 檔案的同步實作（於執行緒池執行）"""
     try:
         logger.info(f"生成播放清單 ID {id} M3U 檔案到檔案系統")
         
@@ -951,6 +967,13 @@ async def download_playlist_m3u(
     id: int = FastAPIPath(..., ge=1, description="播放清單 ID")
 ):
     """下載播放清單為 M3U 格式"""
+    # 生成 M3U 內容需掃描/讀標籤，全是同步阻塞 I/O，丟執行緒池。
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _download_playlist_m3u_impl, id)
+
+
+def _download_playlist_m3u_impl(id: int):
+    """下載播放清單 M3U 的同步實作（於執行緒池執行）"""
     try:
         logger.info(f"下載播放清單 ID {id} 為 M3U 格式")
         

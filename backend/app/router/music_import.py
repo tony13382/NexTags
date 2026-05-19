@@ -157,6 +157,12 @@ async def upload_music_file(
 @router.post("/convert", response_model=ConvertFileResponse)
 async def convert_audio_file(request: ConvertFileRequest):
     """轉換音訊檔案格式 (.m4a -> .flac)"""
+    # ffmpeg 轉檔 + mutagen 讀標籤皆同步阻塞，丟執行緒池避免卡住 event loop。
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _convert_audio_file_impl, request)
+
+
+def _convert_audio_file_impl(request: ConvertFileRequest):
     try:
         if request.file_id not in import_sessions:
             raise HTTPException(status_code=404, detail="找不到檔案ID")
@@ -220,6 +226,12 @@ async def convert_audio_file(request: ConvertFileRequest):
 @router.post("/extract-tags", response_model=ExtractTagsResponse)
 async def extract_music_tags(request: ExtractTagsRequest):
     """提取音樂檔案標籤"""
+    # mutagen 讀標籤 + ffmpeg ReplayGain（最長 120s）皆同步阻塞，丟執行緒池。
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _extract_music_tags_impl, request)
+
+
+def _extract_music_tags_impl(request: ExtractTagsRequest):
     try:
         if request.file_id not in import_sessions:
             raise HTTPException(status_code=404, detail="找不到檔案ID")
@@ -289,6 +301,12 @@ async def extract_music_tags(request: ExtractTagsRequest):
 @router.post("/update-tags", response_model=UpdateTagsResponse)
 async def update_music_tags(request: UpdateTagsRequest):
     """更新音樂檔案標籤"""
+    # mutagen 寫標籤同步阻塞，丟執行緒池避免卡住 event loop。
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _update_music_tags_impl, request)
+
+
+def _update_music_tags_impl(request: UpdateTagsRequest):
     try:
         if request.file_id not in import_sessions:
             raise HTTPException(status_code=404, detail="找不到檔案ID")
@@ -652,6 +670,12 @@ async def upload_artist_image(
 @router.post("/process-album", response_model=ProcessAlbumResponse)
 async def process_album_folder(request: ProcessAlbumRequest):
     """處理專輯資料夾和封面提取"""
+    # 建資料夾 + 封面提取（ffmpeg/mutagen）同步阻塞，丟執行緒池。
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _process_album_folder_impl, request)
+
+
+def _process_album_folder_impl(request: ProcessAlbumRequest):
     try:
         if request.file_id not in import_sessions:
             raise HTTPException(status_code=404, detail="找不到檔案ID")
@@ -879,6 +903,12 @@ async def confirm_file_move(request: ConfirmMoveRequest):
 @router.post("/generate-replaygain", response_model=GenerateReplayGainResponse)
 async def generate_replaygain_tags(request: GenerateReplayGainRequest):
     """為音訊檔案生成 ReplayGain 標籤"""
+    # ffmpeg ReplayGain（最長 120s）同步阻塞，丟執行緒池避免卡住 event loop。
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _generate_replaygain_tags_impl, request)
+
+
+def _generate_replaygain_tags_impl(request: GenerateReplayGainRequest):
     try:
         if request.file_id not in import_sessions:
             raise HTTPException(status_code=404, detail="找不到檔案ID")
