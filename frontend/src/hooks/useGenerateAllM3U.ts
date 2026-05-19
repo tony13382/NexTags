@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 
@@ -9,11 +9,33 @@ interface GenerateAllM3UResult {
 
 export function useGenerateAllM3U(): GenerateAllM3UResult {
   const [generatingAll, setGeneratingAll] = useState(false);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(true);
+
+  // 元件卸載時停止輪詢，避免離開頁面後仍持續打 API / 更新狀態。
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // 輪詢任務狀態
   const pollTaskStatus = async () => {
+    if (!isMountedRef.current) return;
+
+    const scheduleNextPoll = (delay: number) => {
+      if (!isMountedRef.current) return;
+      pollTimerRef.current = setTimeout(pollTaskStatus, delay);
+    };
+
     try {
       const statusData = await api.get('playlists/generate-all-m3u/status');
+      if (!isMountedRef.current) return;
 
       if (statusData.status === 'running') {
         // 更新進度訊息
@@ -23,7 +45,7 @@ export function useGenerateAllM3U(): GenerateAllM3UResult {
         toast.loading(progressText, { id: 'generate-all-m3u' });
 
         // 繼續輪詢
-        setTimeout(pollTaskStatus, 1000);
+        scheduleNextPoll(1000);
       } else if (statusData.status === 'completed') {
         setGeneratingAll(false);
 
@@ -51,7 +73,7 @@ export function useGenerateAllM3U(): GenerateAllM3UResult {
     } catch (err) {
       console.error('Error polling task status:', err);
       // 繼續輪詢，即使發生錯誤
-      setTimeout(pollTaskStatus, 2000);
+      scheduleNextPoll(2000);
     }
   };
 
@@ -65,7 +87,9 @@ export function useGenerateAllM3U(): GenerateAllM3UResult {
       if (data.success) {
         // 任務已啟動，開始輪詢狀態
         toast.loading('批量生成任務已啟動...', { id: 'generate-all-m3u' });
-        setTimeout(pollTaskStatus, 1000);
+        if (isMountedRef.current) {
+          pollTimerRef.current = setTimeout(pollTaskStatus, 1000);
+        }
       } else {
         setGeneratingAll(false);
         toast.error(data.message || '啟動批量生成任務失敗');

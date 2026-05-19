@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -54,6 +54,89 @@ interface ApiResponse {
   supported_languages: { [key: string]: string };
 }
 
+// 抽成 memo 元件：搜尋輸入等狀態變動不會改到 song，
+// 可跳過整個 100 列表格的重繪（原本每按一個字就全表重繪）。
+interface SongRowProps {
+  song: Song;
+  onEdit: (song: Song) => void;
+}
+
+const SongRow = memo(function SongRow({ song, onEdit }: SongRowProps) {
+  return (
+    <tr className="hover:bg-gray-50">
+      <td className="px-4 py-3 max-w-[200px] min-w-[100px]">
+        <div className="font-medium text-foreground truncate">
+          {song.Title || '未知標題'}
+        </div>
+        <div className="text-sm text-muted-foreground truncate">
+          {song.SortTitle || '未知標題'}
+        </div>
+      </td>
+      <td className="px-4 py-3 max-w-[200px] min-w-[100px]">
+        <div className="font-medium text-foreground truncate">
+          {song.Artist || '未知藝術家'}
+        </div>
+        <div className="text-sm text-muted-foreground truncate">
+          {song.SortArtist || '未知藝術家'}
+        </div>
+      </td>
+      <td className="px-4 py-3 max-w-[200px] min-w-[100px]">
+        <div className="font-medium text-foreground truncate">
+          {song.Album || '未知專輯'}
+        </div>
+        <div className="text-sm text-muted-foreground truncate">
+          {song.SortAlbum || '未知專輯'}
+        </div>
+      </td>
+      <td className="px-4 py-3 max-w-[200px] min-w-[100px]">
+        <div className="font-medium text-foreground truncate">
+          <span className="inline-block px-2 py-0.5 mb-2 text-sm bg-muted-foreground text-white rounded-full">
+            {song.MainFolder}
+          </span>
+        </div>
+        <div className="text-sm text-muted-foreground truncate">
+          {song.FilePath || '未知路徑'}
+        </div>
+      </td>
+      <td className="px-4 py-3 max-w-[320px] min-w-[200px]">
+        <div className="text-sm flex flex-wrap gap-2 w-full">
+          {song.Genre.length > 0 ? (
+            song.Genre.map((genre, index) => (
+              <span key={index} className="inline-block px-2 py-1 text-sm bg-gray-100 text-foreground rounded-full">
+                {genre}
+              </span>
+            ))
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-3 text-center max-w-[80px] min-w-[40px]">
+        <div className="text-sm text-foreground max-w-[100px] min-w-[40px]">
+          {song.Language || '-'}
+        </div>
+      </td>
+      <td className="px-4 py-3 max-w-[80px] min-w-[40px]">
+        {song.Favorite === 'True' ? (
+          <Heart className="h-4 w-4 text-red-500 fill-current mx-auto" />
+        ) : (
+          <div className="h-4 w-4 mx-auto"></div>
+        )}
+      </td>
+      <td className="px-4 py-3 text-center">
+        <Button
+          variant="clear"
+          size="sm"
+          className="flex items-center gap-1 mx-auto"
+          onClick={() => onEdit(song)}
+        >
+          <Edit3 className="size-5" />
+        </Button>
+      </td>
+    </tr>
+  );
+});
+
 export default function Home() {
   const navigate = useNavigate();
   const [songs, setSongs] = useState<Song[]>([]);
@@ -105,10 +188,9 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    fetchSongs();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
+  // 掛載時抓一次；showFavorites 變動時重抓第一頁。
+  // 此 effect 在掛載時也會執行，因此不需要另一個空依賴的 effect
+  //（原本兩個 effect 會在掛載時重複發出相同請求）。
   useEffect(() => {
     fetchSongs(1);
   }, [showFavorites]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -303,78 +385,8 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {songs.map((song, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 max-w-[200px] min-w-[100px]">
-                        <div className="font-medium text-foreground truncate">
-                          {song.Title || '未知標題'}
-                        </div>
-                        <div className="text-sm text-muted-foreground truncate">
-                          {song.SortTitle || '未知標題'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 max-w-[200px] min-w-[100px]">
-                        <div className="font-medium text-foreground truncate">
-                          {song.Artist || '未知藝術家'}
-                        </div>
-                        <div className="text-sm text-muted-foreground truncate">
-                          {song.SortArtist || '未知藝術家'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 max-w-[200px] min-w-[100px]">
-                        <div className="font-medium text-foreground truncate">
-                          {song.Album || '未知專輯'}
-                        </div>
-                        <div className="text-sm text-muted-foreground truncate">
-                          {song.SortAlbum || '未知專輯'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 max-w-[200px] min-w-[100px]">
-                        <div className="font-medium text-foreground truncate">
-                          <span className="inline-block px-2 py-0.5 mb-2 text-sm bg-muted-foreground text-white rounded-full">
-                            {song.MainFolder}
-                          </span>
-                        </div>
-                        <div className="text-sm text-muted-foreground truncate">
-                          {song.FilePath || '未知路徑'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 max-w-[320px] min-w-[200px]">
-                        <div className="text-sm flex flex-wrap gap-2 w-full">
-                          {song.Genre.length > 0 ? (
-                            song.Genre.map((genre, index) => (
-                              <span key={index} className="inline-block px-2 py-1 text-sm bg-gray-100 text-foreground rounded-full">
-                                {genre}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center max-w-[80px] min-w-[40px]">
-                        <div className="text-sm text-foreground max-w-[100px] min-w-[40px]">
-                          {song.Language || '-'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 max-w-[80px] min-w-[40px]">
-                        {song.Favorite === 'True' ? (
-                          <Heart className="h-4 w-4 text-red-500 fill-current mx-auto" />
-                        ) : (
-                          <div className="h-4 w-4 mx-auto"></div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <Button
-                          variant="clear"
-                          size="sm"
-                          className="flex items-center gap-1 mx-auto"
-                          onClick={() => setEditingSong(song)}
-                        >
-                          <Edit3 className="size-5" />
-                        </Button>
-                      </td>
-                    </tr>
+                  {songs.map((song) => (
+                    <SongRow key={song.FilePath} song={song} onEdit={setEditingSong} />
                   ))}
                 </tbody>
               </table>

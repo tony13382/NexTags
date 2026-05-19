@@ -29,7 +29,6 @@ export const api = {
 
   // GET 請求
   get: async (endpoint: string, params?: Record<string, string>) => {
-    console.log("Calling api.get from api.ts for endpoint:", endpoint);
     const response = await axiosInstance.get(endpoint, { params })
     return response.data
   },
