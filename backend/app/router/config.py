@@ -4,6 +4,8 @@ from typing import Dict, List, Any
 from app.dependencies.database import db
 from app.dependencies.logger import logger
 import json
+import time
+import threading
 
 router = APIRouter(prefix="/config", tags=["config"])
 
@@ -14,10 +16,36 @@ class ConfigUpdate(BaseModel):
     description: str = None
 
 
+# get_config 在列表/播放清單等熱路徑會對每個檔案呼叫上千次，
+# 每次都開新 SQLite 連線（無連線池）。以進程內快取避免重複連線：
+# 寫入/刪除時主動失效；另加短 TTL 當多 worker 部署的安全網。
+# 快取存「原始 JSON 字串」而非解析後物件，每次 get 重新 json.loads，
+# 避免回傳的可變物件（如 allow_folders list）被呼叫端改到而污染快取。
+_CONFIG_CACHE_TTL = 30  # 秒
+_config_cache: Dict[str, tuple] = {}  # config_key -> (raw_value_or_None, expire_at)
+_config_cache_lock = threading.Lock()
+
+
+def _config_cache_invalidate(config_key: str = None):
+    """設定變更時失效快取；不帶參數則清空全部。"""
+    with _config_cache_lock:
+        if config_key is None:
+            _config_cache.clear()
+        else:
+            _config_cache.pop(config_key, None)
+
+
 def get_config(config_key: str) -> Any:
-    """從資料庫取得設定值"""
+    """從資料庫取得設定值（帶進程內快取）"""
     if db is None:
         raise HTTPException(status_code=500, detail="資料庫未初始化")
+
+    now = time.monotonic()
+    with _config_cache_lock:
+        entry = _config_cache.get(config_key)
+        if entry is not None and entry[1] > now:
+            raw = entry[0]
+            return json.loads(raw) if raw is not None else None
 
     with db.get_connection() as conn:
         cur = db.get_cursor(conn)
@@ -26,9 +54,12 @@ def get_config(config_key: str) -> Any:
             (config_key,)
         )
         result = cur.fetchone()
-        if result:
-            return json.loads(result['config_value'])
-        return None
+        raw = result['config_value'] if result else None
+
+    with _config_cache_lock:
+        _config_cache[config_key] = (raw, time.monotonic() + _CONFIG_CACHE_TTL)
+
+    return json.loads(raw) if raw is not None else None
 
 
 def set_config(config_key: str, config_value: Any, description: str = None):
@@ -49,6 +80,8 @@ def set_config(config_key: str, config_value: Any, description: str = None):
                 updated_at = CURRENT_TIMESTAMP
         """, (config_key, json.dumps(config_value), description))
         conn.commit()
+
+    _config_cache_invalidate(config_key)
 
 
 @router.get("")
@@ -168,6 +201,8 @@ async def delete_config(config_key: str):
                     detail=f"設定 '{config_key}' 不存在"
                 )
             conn.commit()
+
+        _config_cache_invalidate(config_key)
 
         return {
             "success": True,
