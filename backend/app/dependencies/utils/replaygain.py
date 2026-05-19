@@ -115,8 +115,7 @@ def generate_replaygain(file_path: str) -> Tuple[bool, str]:
         try:
             from ..redis_cache import redis_cache
             if redis_cache:
-                redis_cache.invalidate_cache(file_path)
-                logger.info(f"已從快取中移除: {file_path}")
+                redis_cache.remove_tags(file_path)
         except Exception:
             pass
 
