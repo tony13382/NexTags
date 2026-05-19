@@ -19,10 +19,24 @@ app = FastAPI(
     redirect_slashes=False
 )
 
+import os
+
+# CORS 來源由環境變數 CORS_ALLOW_ORIGINS 控制（逗號分隔）。
+# 未設定或為 "*" 時用萬用字元，但依瀏覽器規範萬用字元不可搭配
+# credentials，故此時 allow_credentials 必須為 False（修正原本
+# allow_origins=["*"] + allow_credentials=True 的無效/風險組合）。
+_cors_env = os.getenv("CORS_ALLOW_ORIGINS", "*").strip()
+if _cors_env and _cors_env != "*":
+    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+    _cors_allow_credentials = True
+else:
+    _cors_origins = ["*"]
+    _cors_allow_credentials = False
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

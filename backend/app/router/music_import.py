@@ -160,10 +160,15 @@ async def upload_music_file(
         temp_filename = f"{file_id}_{file.filename}"
         temp_file_path = os.path.join(wait_import_path, temp_filename)
         
-        # 儲存檔案到 WaitImport
+        # 串流寫入 WaitImport，避免一次將整個檔案讀進記憶體
+        file_size = 0
         with open(temp_file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                buffer.write(chunk)
+                file_size += len(chunk)
         
         # 判斷檔案格式和是否需要轉換
         audio_format = get_file_format(file.filename)
@@ -178,7 +183,7 @@ async def upload_music_file(
             base_folder=base_folder,
             format=audio_format.value,
             needs_conversion=needs_conv,
-            file_size=len(content)
+            file_size=file_size
         )
         
         logger.info(f"檔案上傳成功: {file.filename} -> {temp_file_path}")
@@ -193,6 +198,8 @@ async def upload_music_file(
             needs_conversion=needs_conv
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"檔案上傳失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=f"檔案上傳失敗: {str(e)}")
@@ -260,6 +267,8 @@ def _convert_audio_file_impl(request: ConvertFileRequest):
             target_format=AudioFormat.FLAC
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"檔案轉換失敗: {str(e)}")
         if request.file_id in import_sessions:
@@ -335,6 +344,8 @@ def _extract_music_tags_impl(request: ExtractTagsRequest):
             suggested_filename=suggested_filename
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"標籤提取失敗: {str(e)}")
         if request.file_id in import_sessions:
@@ -381,6 +392,8 @@ def _update_music_tags_impl(request: UpdateTagsRequest):
             updated_tags=request.tags
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"標籤更新失敗: {str(e)}")
         if request.file_id in import_sessions:
@@ -422,6 +435,8 @@ async def get_import_status(file_id: str):
             errors=session.get('errors', [])
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"取得匯入狀態失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=f"取得匯入狀態失敗: {str(e)}")
@@ -495,6 +510,8 @@ async def list_pending_imports():
             count=len(pending_imports)
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"列出待處理匯入失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=f"列出待處理匯入失敗: {str(e)}")
@@ -640,6 +657,8 @@ async def check_artist_folder(request: CheckArtistRequest):
             message=message
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"檢查歌手資料夾失敗: {str(e)}")
         if request.file_id in import_sessions:
@@ -684,9 +703,13 @@ async def upload_artist_image(
         # 儲存圖片為 artist.jpg
         artist_image_path = os.path.join(artist_folder_path, "artist.jpg")
         
+        # 串流寫入，避免一次將整張圖片讀進記憶體
         with open(artist_image_path, "wb") as buffer:
-            content = await image.read()
-            buffer.write(content)
+            while True:
+                chunk = await image.read(1024 * 1024)
+                if not chunk:
+                    break
+                buffer.write(chunk)
         
         # 更新匯入狀態
         update_import_status(
@@ -704,6 +727,8 @@ async def upload_artist_image(
             artist_image_path=artist_image_path
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"歌手圖片上傳失敗: {str(e)}")
         if file_id in import_sessions:
@@ -793,6 +818,8 @@ def _process_album_folder_impl(request: ProcessAlbumRequest):
             cover_path=cover_path
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"專輯處理失敗: {str(e)}")
         if request.file_id in import_sessions:
@@ -844,6 +871,8 @@ async def finalize_file_preparation(request: FinalizeFileRequest):
             preview_final_path=preview_final_path
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"檔案準備失敗: {str(e)}")
         if request.file_id in import_sessions:
@@ -937,6 +966,8 @@ async def confirm_file_move(request: ConfirmMoveRequest):
             final_path=preview_final_path
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"檔案移動失敗: {str(e)}")
         if request.file_id in import_sessions:
