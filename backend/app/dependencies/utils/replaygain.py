@@ -22,7 +22,7 @@ def _get_ffmpeg_path() -> str:
 
 def _parse_replaygain_output(stderr: str) -> Tuple[str, str]:
     """從 ffmpeg stderr 中解析 ReplayGain 值"""
-    gain_match = re.search(r'track_gain\s*=\s*([-\d.]+)\s*dB', stderr)
+    gain_match = re.search(r'track_gain\s*=\s*([+-]?\d+(?:\.\d+)?)\s*dB', stderr)
     peak_match = re.search(r'track_peak\s*=\s*([\d.]+)', stderr)
 
     track_gain = f"{gain_match.group(1)} dB" if gain_match else ''
