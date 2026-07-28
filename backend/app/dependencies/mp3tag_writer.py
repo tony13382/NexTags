@@ -9,6 +9,29 @@ import os
 from app.dependencies.logger import logger
 
 
+def coerce_number(value) -> str:
+    """把 disc/track 類欄位收斂成純數字字串，無法解析時回傳 ''。
+
+    擋住歷史上造成標籤損壞的來源：若 value 是 list，直接 str() 會寫入
+    "['3/11']" 這種字串並永久污染檔案。這裡統一剝殼、取斜線前段，
+    並要求結果必須是純數字才寫入。
+    """
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else ''
+
+    text = str(value).strip() if value is not None else ''
+
+    while len(text) >= 2 and text[0] in '[(' and text[-1] in ')]':
+        text = text[1:-1].strip()
+
+    text = text.strip('\'"').strip()
+
+    if '/' in text:
+        text = text.partition('/')[0].strip()
+
+    return text if text.isdigit() else ''
+
+
 def load_supported_genres():
     """從資料庫載入支援的流派"""
     try:
@@ -59,17 +82,12 @@ def write_mp4_tags(audio, tags_dict):
         'performersort': 'sope',
     }
 
-    # 處理 discnumber 和 disctotal
-    discnumber = tags_dict.get('discnumber', '')
-    disctotal = tags_dict.get('disctotal', '')
-    if discnumber:
-        try:
-            disc_num = int(discnumber) if discnumber else 0
-            disc_tot = int(disctotal) if disctotal else 0
-            if disc_num > 0:
-                audio['disk'] = [(disc_num, disc_tot)]
-        except (ValueError, TypeError):
-            pass
+    # 處理 disc / track（MP4 的 disk 與 trkn 同為 (num, total) 元組）
+    for field, mp4_key in (('disc', 'disk'), ('track', 'trkn')):
+        number = coerce_number(tags_dict.get(f'{field}number', ''))
+        total = coerce_number(tags_dict.get(f'{field}total', ''))
+        if number:
+            audio[mp4_key] = [(int(number), int(total) if total else 0)]
 
     # 處理自定義欄位 (使用 FreeForm)
     custom_fields = {
@@ -88,7 +106,7 @@ def write_mp4_tags(audio, tags_dict):
 
     for key, value in tags_dict.items():
         # 跳過已處理的欄位
-        if key in ['discnumber', 'disctotal'] or key in custom_fields or key in ['jfid', 'jellyfin_add_time']:
+        if key in ['discnumber', 'disctotal', 'tracknumber', 'tracktotal'] or key in custom_fields or key in ['jfid', 'jellyfin_add_time']:
             continue
 
         if key in tag_mapping:
@@ -125,13 +143,14 @@ def write_mp4_tags(audio, tags_dict):
 
 def write_flac_tags(audio, tags_dict):
     """寫入 FLAC 格式的標籤"""
-    # 處理 discnumber 和 disctotal
-    discnumber = tags_dict.get('discnumber', '')
-    disctotal = tags_dict.get('disctotal', '')
-    if discnumber:
-        audio['DISCNUMBER'] = [str(discnumber)]
-    if disctotal:
-        audio['DISCTOTAL'] = [str(disctotal)]
+    # 處理 disc / track（Vorbis comment 為純字串）
+    for field, prefix in (('disc', 'DISC'), ('track', 'TRACK')):
+        number = coerce_number(tags_dict.get(f'{field}number', ''))
+        total = coerce_number(tags_dict.get(f'{field}total', ''))
+        if number:
+            audio[f'{prefix}NUMBER'] = [number]
+        if total:
+            audio[f'{prefix}TOTAL'] = [total]
 
     # 處理自定義欄位
     custom_fields = ['language', 'favorite', 'replaygain_track_gain', 'replaygain_track_peak',
@@ -142,7 +161,7 @@ def write_flac_tags(audio, tags_dict):
 
     for key, value in tags_dict.items():
         # 跳過已處理的欄位
-        if key in ['discnumber', 'disctotal'] or key in custom_fields or key in ['jfid', 'jellyfin_add_time']:
+        if key in ['discnumber', 'disctotal', 'tracknumber', 'tracktotal'] or key in custom_fields or key in ['jfid', 'jellyfin_add_time']:
             continue
         if key == 'genre':
             # 處理流派列表格式並驗證
@@ -170,13 +189,14 @@ def write_flac_tags(audio, tags_dict):
 
 def write_ogg_tags(audio, tags_dict):
     """寫入 OGG 格式的標籤"""
-    # 處理 discnumber 和 disctotal
-    discnumber = tags_dict.get('discnumber', '')
-    disctotal = tags_dict.get('disctotal', '')
-    if discnumber:
-        audio['DISCNUMBER'] = [str(discnumber)]
-    if disctotal:
-        audio['DISCTOTAL'] = [str(disctotal)]
+    # 處理 disc / track（Vorbis comment 為純字串）
+    for field, prefix in (('disc', 'DISC'), ('track', 'TRACK')):
+        number = coerce_number(tags_dict.get(f'{field}number', ''))
+        total = coerce_number(tags_dict.get(f'{field}total', ''))
+        if number:
+            audio[f'{prefix}NUMBER'] = [number]
+        if total:
+            audio[f'{prefix}TOTAL'] = [total]
 
     # 處理自定義欄位
     custom_fields = ['language', 'favorite', 'replaygain_track_gain', 'replaygain_track_peak',
@@ -187,7 +207,7 @@ def write_ogg_tags(audio, tags_dict):
 
     for key, value in tags_dict.items():
         # 跳過已處理的欄位
-        if key in ['discnumber', 'disctotal'] or key in custom_fields or key in ['jfid', 'jellyfin_add_time']:
+        if key in ['discnumber', 'disctotal', 'tracknumber', 'tracktotal'] or key in custom_fields or key in ['jfid', 'jellyfin_add_time']:
             continue
         if key == 'genre':
             # 處理流派列表格式並驗證
@@ -235,18 +255,16 @@ def write_mp3_tags(audio, tags_dict):
         'genre': TCON,
     }
 
-    # 處理 discnumber 和 disctotal
-    discnumber = tags_dict.get('discnumber', '')
-    disctotal = tags_dict.get('disctotal', '')
-    if discnumber or disctotal:
-        try:
-            disc_num = int(discnumber) if discnumber else 0
-            disc_tot = int(disctotal) if disctotal else 0
-            if disc_num > 0 or disc_tot > 0:
-                disc_str = f"{disc_num}/{disc_tot}" if disc_tot > 0 else str(disc_num)
-                audio.tags['TPOS'] = TPOS(encoding=3, text=disc_str)
-        except (ValueError, TypeError):
-            pass
+    # 處理 disc / track（ID3 的 TPOS 與 TRCK 同為 "num/total" 格式）
+    for field, frame in (('disc', TPOS), ('track', TRCK)):
+        number = coerce_number(tags_dict.get(f'{field}number', ''))
+        total = coerce_number(tags_dict.get(f'{field}total', ''))
+        if number or total:
+            num = int(number) if number else 0
+            tot = int(total) if total else 0
+            if num > 0 or tot > 0:
+                text = f"{num}/{tot}" if tot > 0 else str(num)
+                audio.tags[frame.__name__] = frame(encoding=3, text=text)
 
     # 處理自定義欄位 (使用 TXXX)
     custom_fields = {
@@ -264,7 +282,7 @@ def write_mp3_tags(audio, tags_dict):
 
     for key, value in tags_dict.items():
         # 跳過已處理的欄位
-        if key in ['discnumber', 'disctotal'] or key in custom_fields or key in ['jfid', 'jellyfin_add_time']:
+        if key in ['discnumber', 'disctotal', 'tracknumber', 'tracktotal'] or key in custom_fields or key in ['jfid', 'jellyfin_add_time']:
             continue
         if key == 'comment':
             # 對於評論，使用 COMM 框架

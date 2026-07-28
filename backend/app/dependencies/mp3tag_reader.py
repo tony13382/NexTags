@@ -8,6 +8,58 @@ from mutagen.id3 import ID3
 from app.dependencies.logger import logger
 
 
+# number/total 成對的標籤：主欄位 -> 總數欄位
+PAIR_NUMBER_KEYS = {
+    'discnumber': 'disctotal',
+    'tracknumber': 'tracktotal',
+}
+
+
+def clean_number_token(value) -> str:
+    """把 number/total 類標籤值收斂成乾淨字串。
+
+    需要容錯歷史資料：早期寫入路徑會把 Python list 直接 str() 塞進標籤，
+    在檔案裡留下 "['3/11']" 這種值（外層有中括號與引號），必須剝掉外殼
+    才能正確解析，否則會拆出 "['3" 這類垃圾。
+    """
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else ''
+
+    text = str(value).strip() if value is not None else ''
+
+    # 剝除 str(list) 留下的外殼，例如 "['3/11']" -> "3/11"
+    while len(text) >= 2 and text[0] in '[(' and text[-1] in ')]':
+        text = text[1:-1].strip()
+
+    return text.strip('\'"').strip()
+
+
+def _assign_number_pair(normalized: dict, standard_key: str, value) -> None:
+    """把 (1, 2) 元組、"1/2" 字串或 "1" 單值拆成主欄位與總數欄位。
+
+    disc 與 track 在 ID3(TPOS/TRCK)、MP4(disk/trkn)、Vorbis 三種容器裡的格式完全一致，
+    因此共用同一份拆解邏輯。
+    """
+    total_key = PAIR_NUMBER_KEYS[standard_key]
+
+    # MP4 的 (num, total) 是正規結構，優先處理，不可先被當成字串清理
+    if isinstance(value, tuple) and len(value) >= 1:
+        normalized[standard_key] = str(value[0]) if value[0] else ''
+        if len(value) >= 2 and value[1]:
+            normalized[total_key] = str(value[1])
+        return
+
+    text = clean_number_token(value)
+    if '/' in text:
+        number, _, total = text.partition('/')
+        normalized[standard_key] = clean_number_token(number)
+        total = clean_number_token(total)
+        if total:
+            normalized[total_key] = total
+    else:
+        normalized[standard_key] = text
+
+
 def normalize_tag_keys(raw_tags: dict) -> dict:
     """標準化標籤鍵名，將不同格式的標籤統一為標準名稱"""
     normalized = {}
@@ -32,7 +84,10 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
         'composersort': ['composersort', 'TSOC', 'soco', 'COMPOSERSORT', 'TXXX:COMPOSERSORT'],
         'performersort': ['performersort', 'TSOP3', 'sope', 'PERFORMERSORT', 'TXXX:PERFORMERSORT'],
         'discnumber': ['discnumber', 'TPOS', 'disk', 'DISCNUMBER', 'DISC'],
-        'disctotal': ['disctotal', 'DISCTOTAL'],
+        # Vorbis comment 的 key 由 mutagen 回傳小寫，ID3/MP4 則是原樣，因此兩種大小寫都要列
+        'disctotal': ['disctotal', 'DISCTOTAL', 'totaldiscs', 'TOTALDISCS'],
+        'tracknumber': ['tracknumber', 'TRCK', 'trkn', 'TRACKNUMBER', 'TRACK'],
+        'tracktotal': ['tracktotal', 'TRACKTOTAL', 'totaltracks', 'TOTALTRACKS'],
         'genre': ['genre', 'TCON', '\xa9gen', 'GENRE'],
         'language': ['language', 'TLAN', 'LANGUAGE', 'TXXX:LANGUAGE', '----:com.apple.iTunes:LANGUAGE'],
         'favorite': ['favorite', 'FAVORITE', 'Favorite', 'TXXX:FAVORITE', 'TXXX:Favorite', '----:com.apple.iTunes:FAVORITE'],
@@ -92,36 +147,12 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
                             normalized[standard_key] = ';'.join(str(t) for t in text_value) if text_value else ''
                         else:
                             normalized[standard_key] = str(text_value) if text_value else ''
-                    elif standard_key == 'discnumber':
-                        # Disc 標籤可能是 (1, 2) 元組格式或 "1/2" 字符串格式
+                    elif standard_key in PAIR_NUMBER_KEYS:
+                        # disc/track 可能是 (1, 2) 元組格式或 "1/2" 字符串格式
                         if isinstance(text_value, list) and len(text_value) > 0:
-                            disc_value = text_value[0]
-                            if isinstance(disc_value, tuple) and len(disc_value) >= 1:
-                                normalized['discnumber'] = str(disc_value[0]) if disc_value[0] else ''
-                                if len(disc_value) >= 2 and disc_value[1]:
-                                    normalized['disctotal'] = str(disc_value[1])
-                            else:
-                                disc_str = str(disc_value)
-                                if '/' in disc_str:
-                                    parts = disc_str.split('/')
-                                    normalized['discnumber'] = parts[0].strip()
-                                    if len(parts) > 1:
-                                        normalized['disctotal'] = parts[1].strip()
-                                else:
-                                    normalized['discnumber'] = disc_str
-                        elif isinstance(text_value, tuple) and len(text_value) >= 1:
-                            normalized['discnumber'] = str(text_value[0]) if text_value[0] else ''
-                            if len(text_value) >= 2 and text_value[1]:
-                                normalized['disctotal'] = str(text_value[1])
+                            _assign_number_pair(normalized, standard_key, text_value[0])
                         else:
-                            disc_str = str(text_value) if text_value else ''
-                            if '/' in disc_str:
-                                parts = disc_str.split('/')
-                                normalized['discnumber'] = parts[0].strip()
-                                if len(parts) > 1:
-                                    normalized['disctotal'] = parts[1].strip()
-                            else:
-                                normalized['discnumber'] = disc_str
+                            _assign_number_pair(normalized, standard_key, text_value)
                     elif standard_key in ['language', 'favorite', 'replaygain_track_gain', 'replaygain_track_peak', 'replaygain_album_gain', 'replaygain_album_peak']:
                         # Language、Favorite 和 ReplayGain 標籤為單值欄位
                         if isinstance(text_value, list):
@@ -152,23 +183,10 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
                     elif standard_key in ['artist', 'artistsort', 'albumartist', 'albumartistsort', 'composer', 'composersort', 'performer', 'performersort']:
                         # Artist 相關標籤使用分號分隔
                         normalized[standard_key] = ';'.join(str(v) for v in decoded_value) if decoded_value else ''
-                    elif standard_key == 'discnumber':
-                        # Disc 標籤可能是 [(1, 2)] 格式或 ["1/2"] 格式
+                    elif standard_key in PAIR_NUMBER_KEYS:
+                        # disc/track 可能是 [(1, 2)] 格式或 ["1/2"] 格式
                         if len(decoded_value) > 0:
-                            disc_value = decoded_value[0]
-                            if isinstance(disc_value, tuple) and len(disc_value) >= 1:
-                                normalized['discnumber'] = str(disc_value[0]) if disc_value[0] else ''
-                                if len(disc_value) >= 2 and disc_value[1]:
-                                    normalized['disctotal'] = str(disc_value[1])
-                            else:
-                                disc_str = str(disc_value)
-                                if '/' in disc_str:
-                                    parts = disc_str.split('/')
-                                    normalized['discnumber'] = parts[0].strip()
-                                    if len(parts) > 1:
-                                        normalized['disctotal'] = parts[1].strip()
-                                else:
-                                    normalized['discnumber'] = disc_str
+                            _assign_number_pair(normalized, standard_key, decoded_value[0])
                     elif standard_key.startswith('replaygain_') or standard_key in ['language', 'favorite']:
                         # ReplayGain、Language 和 Favorite 標籤取第一個值（單值欄位）
                         normalized[standard_key] = str(decoded_value[0]) if decoded_value else ''
@@ -179,6 +197,9 @@ def normalize_tag_keys(raw_tags: dict) -> dict:
                     if standard_key == 'genre':
                         # 流派標籤保持為列表格式
                         normalized[standard_key] = [str(raw_value)] if raw_value else []
+                    elif standard_key in PAIR_NUMBER_KEYS:
+                        # 純量值也可能是 "1/2" 格式
+                        _assign_number_pair(normalized, standard_key, raw_value)
                     else:
                         # 其他標籤轉換為字符串
                         normalized[standard_key] = str(raw_value) if raw_value else ''

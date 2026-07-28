@@ -24,6 +24,8 @@ interface Song {
   SortAlbumArtist?: string;
   SortComposer?: string;
   SortPerformer?: string;
+  TrackNumber?: string;
+  TrackTotal?: string;
   DiscNumber?: string;
   DiscTotal?: string;
   Lyrics?: string;
@@ -61,6 +63,8 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
         SortAlbumArtist: song.SortAlbumArtist || '',
         SortComposer: song.SortComposer || '',
         SortPerformer: song.SortPerformer || '',
+        TrackNumber: song.TrackNumber || '',
+        TrackTotal: song.TrackTotal || '',
         DiscNumber: song.DiscNumber || '',
         DiscTotal: song.DiscTotal || '',
         Lyrics: song.Lyrics || '',
@@ -535,6 +539,26 @@ export default function TagEditor({ song, onClose, onSave }: TagEditorProps) {
                   value={editedSong.SortPerformer || ''}
                   onChange={(e) => handleInputChange('SortPerformer', e.target.value)}
                   placeholder="排序演奏者"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 bg-white rounded-lg">
+              <div>
+                <label className="text-gray-500 block mb-1">Track Number</label>
+                <Input
+                  value={editedSong.TrackNumber || ''}
+                  onChange={(e) => handleInputChange('TrackNumber', e.target.value)}
+                  placeholder="曲目編號"
+                  type="number"
+                />
+              </div>
+              <div>
+                <label className="text-gray-500 block mb-1">Track Total</label>
+                <Input
+                  value={editedSong.TrackTotal || ''}
+                  onChange={(e) => handleInputChange('TrackTotal', e.target.value)}
+                  placeholder="曲目總數"
+                  type="number"
                 />
               </div>
             </div>

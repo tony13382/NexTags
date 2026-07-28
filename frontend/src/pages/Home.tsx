@@ -28,6 +28,8 @@ interface Song {
   AlbumArtist?: string;
   Composer?: string;
   Performer?: string;
+  TrackNumber?: string;
+  TrackTotal?: string;
   DiscNumber?: string;
   DiscTotal?: string;
   Lyrics?: string;
@@ -220,6 +222,8 @@ export default function Home() {
           albumartistsort: song.SortAlbumArtist || '',
           composersort: song.SortComposer || '',
           performersort: song.SortPerformer || '',
+          tracknumber: song.TrackNumber || '',
+          tracktotal: song.TrackTotal || '',
           discnumber: song.DiscNumber || '',
           disctotal: song.DiscTotal || '',
           genre: song.Genre,
